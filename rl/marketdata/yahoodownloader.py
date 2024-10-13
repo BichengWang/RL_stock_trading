@@ -45,10 +45,14 @@ class YahooDownloader:
         """
         # Download and save the data in a pandas DataFrame:
         data_df = pd.DataFrame()
+        temp_dfs = []
         for tic in self.ticker_list:
-            temp_df = yf.download(tic, start=self.start_date, end=self.end_date)
+            temp_df = yf.download(
+                tic, start=self.start_date, end=self.end_date
+            )
             temp_df["tic"] = tic
-            data_df = data_df.append(temp_df)
+            temp_dfs.append(temp_df)
+        data_df = pd.concat(temp_dfs, ignore_index=True)
         # reset the index, we want to use numbers as index instead of dates
         data_df = data_df.reset_index()
         try:
@@ -66,9 +70,11 @@ class YahooDownloader:
             # use adjusted close price instead of close price
             data_df["close"] = data_df["adjcp"]
             # drop the adjusted close price column
-            data_df = data_df.drop("adjcp", 1)
+            data_df = data_df.drop("adjcp", axis=1)
         except NotImplementedError:
             print("the features are not supported currently")
+        # ensure the date column is in datetime format
+        data_df["date"] = pd.to_datetime(data_df["date"])
         # create day of the week column (monday = 0)
         data_df["day"] = data_df["date"].dt.dayofweek
         # convert date to standard string format, easy to filter

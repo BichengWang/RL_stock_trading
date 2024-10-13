@@ -1,0 +1,17 @@
+pandas==2.1.1             # For data manipulation and analysis
+numpy==1.24.3             # For numerical computations
+scipy==1.11.1             # For advanced mathematical functions
+matplotlib==3.8.0         # For data visualization
+seaborn==0.12.2           # For statistical data visualization
+yfinance==0.2.18          # To retrieve financial data from Yahoo Finance
+alpha_vantage==2.3.1      # For accessing financial data via Alpha Vantage API
+# Quandl==3.7.1             # For accessing financial, economic, and alternative datasets
+statsmodels==0.14.0       # For statistical analysis
+scikit-learn==1.3.1       # For machine learning models
+# ta-lib==0.4.0             # For technical analysis of financial data
+pyportfolioopt==1.5.4     # For portfolio optimization
+finta==1.3                # For technical analysis indicators
+xlrd==2.0.1               # For reading Excel files (if needed)
+openpyxl==3.1.2           # For working with Excel files
+finrl==0.3.7              # For reinforcement learning in finance
+stockstats==0.6.2         # For stock market indicators

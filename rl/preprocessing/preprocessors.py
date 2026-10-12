@@ -42,6 +42,39 @@ def balance_panel(df, max_missing_frac=0.05):
     return df.sort_values(["date", "tic"]).reset_index(drop=True)
 
 
+def require_complete_prices(df, tickers, dates):
+    """Require one positive finite open/close row per frozen ticker/session.
+
+    ``dates`` comes from the observed raw panel before filtering tickers, so
+    filtering out a missing trained symbol cannot erase an evaluation session.
+    Prices are checked before feature filling can conceal missing values.
+    """
+    prices = ["open", "close"]
+    for column in prices:
+        if column not in df.columns:
+            raise ValueError("Raw market data requires the '{}' price column".format(column))
+    expected = pd.MultiIndex.from_product([sorted(dates), tickers], names=["date", "tic"])
+    indexed = df.set_index(["date", "tic"])[prices]
+    duplicates = indexed.index[indexed.index.duplicated()].intersection(expected)
+    if len(duplicates):
+        date, tic = duplicates[0]
+        raise ValueError("Duplicate price rows for ticker {} on {}".format(tic, date))
+    missing = expected.difference(indexed.index)
+    if len(missing):
+        date, tic = missing[0]
+        raise ValueError("Missing price row for ticker {} on {}".format(tic, date))
+    values = indexed.reindex(expected).apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+    invalid = ~np.isfinite(values) | (values <= 0)
+    if invalid.any():
+        row, column = np.argwhere(invalid)[0]
+        date, tic = expected[row]
+        raise ValueError(
+            "Invalid {} price for ticker {} on {}; require positive finite prices".format(
+                prices[column], tic, date
+            )
+        )
+
+
 def calculate_turbulence(df, lookback=252, warmup=2):
     """Turbulence index (Kritzman & Li, 2010) for each date.
 

@@ -23,14 +23,14 @@ def processed(raw_prices):
 
 
 def make_panel(closes, tickers=None, start="2020-01-01", **columns):
-    """Build a tiny (day, tic) frame from a list of per-day close lists."""
+    """Build a tiny panel; opens default to closes unless explicitly supplied."""
     closes = [list(row) if hasattr(row, "__len__") else [row] for row in closes]
     tickers = tickers or ["T{}".format(i) for i in range(len(closes[0]))]
     dates = pd.bdate_range(start, periods=len(closes)).strftime("%Y-%m-%d")
     rows = []
     for d, (date, row) in enumerate(zip(dates, closes)):
         for i, (tic, close) in enumerate(zip(tickers, row)):
-            record = {"date": date, "tic": tic, "close": float(close)}
+            record = {"date": date, "tic": tic, "open": float(close), "close": float(close)}
             for name, values in columns.items():
                 value = values[d]
                 record[name] = float(value[i] if hasattr(value, "__len__") else value)

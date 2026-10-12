@@ -9,6 +9,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 
 from rl.config import config
 from rl.env.env_stocktrading import panel_arrays
+from rl.trade.baselines import _rebalance_positions
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,8 @@ class StockPortfolioEnv(gym.Env):
     """A portfolio allocation environment with the gymnasium API.
 
     Each step the agent outputs one score per stock; a softmax turns the
-    scores into long-only portfolio weights that are held until the next day.
+    scores into long-only target weights. Signals use the current close,
+    trades fill at the next open, and holdings are marked at that day's close.
 
     Attributes
     ----------
@@ -102,7 +104,9 @@ class StockPortfolioEnv(gym.Env):
         )
         # Look up each day's prices and observation in arrays instead of
         # slicing the frame on every step.
-        self.dates, self.tickers, arrays = panel_arrays(df, ["close"] + list(tech_indicator_list))
+        self.dates, self.tickers, arrays = panel_arrays(
+            df, ["open", "close"] + list(tech_indicator_list)
+        )
         if len(self.tickers) != self.stock_dim:
             raise ValueError(
                 "stock_dim is {} but the data has {} tickers".format(
@@ -112,6 +116,9 @@ class StockPortfolioEnv(gym.Env):
         if "cov_list" not in df.columns:
             raise ValueError("Data is missing column 'cov_list' (see add_covariance_matrix)")
         self.n_days = len(self.dates)
+        if not 0 <= self.start_day < self.n_days - 1:
+            raise ValueError("Need at least two days of data after the start day")
+        self.open_prices = arrays["open"]
         self.close_prices = arrays["close"]
         covs = np.stack(
             [np.asarray(c, dtype=np.float64) for c in df["cov_list"].groupby(df.index).first()]
@@ -137,12 +144,12 @@ class StockPortfolioEnv(gym.Env):
         self.reward = 0.0
         self.portfolio_value = self.initial_amount
         self.cost = 0.0
-        # The account starts in cash, so the first allocation pays costs on
-        # the whole portfolio, as the baselines' initial purchase does.
+        self.cash = float(self.initial_amount)
+        self.holdings = np.zeros(self.stock_dim)
         self.weights = np.zeros(self.stock_dim)
         self.asset_memory = [self.initial_amount]
         self.portfolio_return_memory = [0]
-        # Weights chosen at each day's close (held until the next close).
+        # Target weights remain indexed by the signal close, not the fill date.
         self.actions_memory = []
         self.date_memory = [self.dates[self.day]]
 
@@ -150,22 +157,26 @@ class StockPortfolioEnv(gym.Env):
         if self.terminal:
             raise RuntimeError("Episode is over; call reset() before step()")
         weights = self.softmax_normalization(np.asarray(actions, dtype=np.float64))
-        # Weights drift with prices between rebalances, so rebalancing costs
-        # are charged on the change from the drifted weights (all of the
-        # new weights on the first day, when the account holds only cash).
-        turnover = np.abs(weights - self.weights).sum()
-        cost = self.portfolio_value * turnover * self.transaction_cost_pct
+        begin_value = self.portfolio_value
+        fill_day = self.day + 1
+        fill_prices = self.open_prices[fill_day]
+        # Existing shares earn the overnight gap before rebalancing. Fees are
+        # paid from equity and targets are fractions of the post-fee account.
+        positions, self.cash, cost = _rebalance_positions(
+            self.cash,
+            self.holdings * fill_prices,
+            weights,
+            self.transaction_cost_pct,
+        )
+        self.holdings = positions / fill_prices
         self.cost += cost
         self.actions_memory.append(weights)
 
-        self.day += 1
+        self.day = fill_day
         self._load_day()
-        relative = self.close_prices[self.day] / self.close_prices[self.day - 1]
-        portfolio_return = float(np.dot(relative - 1, weights))
-        begin_value = self.portfolio_value
-        self.portfolio_value = (begin_value - cost) * (1 + portfolio_return)
-        drifted = weights * relative
-        self.weights = drifted / drifted.sum()
+        closing_positions = self.holdings * self.close_prices[self.day]
+        self.portfolio_value = float(self.cash + closing_positions.sum())
+        self.weights = closing_positions / self.portfolio_value
 
         self.portfolio_return_memory.append(self.portfolio_value / begin_value - 1)
         self.date_memory.append(self.dates[self.day])
@@ -230,13 +241,19 @@ class StockPortfolioEnv(gym.Env):
         return df_account_value
 
     def save_action_memory(self):
-        """Portfolio weights chosen on each day, one column per ticker."""
+        """Target portfolio weights indexed by their signal close."""
         df_actions = pd.DataFrame(
             np.asarray(self.actions_memory).reshape(-1, self.stock_dim),
             columns=self.tickers,
         )
         df_actions.index = pd.Index(self.date_memory[:-1], name="date")
         return df_actions
+
+    def save_execution_memory(self):
+        """Signal/fill dates and target weights, one column per ticker."""
+        executions = self.save_action_memory().reset_index().rename(columns={"date": "signal_date"})
+        executions.insert(1, "fill_date", self.date_memory[1:])
+        return executions
 
     def get_sb_env(self):
         e = DummyVecEnv([lambda: self])

@@ -335,6 +335,8 @@ class DRLEnsembleAgent:
         self.unique_trade_date = np.sort(
             df[(df.date >= val_test_period[0]) & (df.date < val_test_period[1])].date.unique()
         )
+        if rebalance_window < 1 or validation_window < 2:
+            raise ValueError("rebalance_window must be positive and validation_window at least 2")
         self.rebalance_window = rebalance_window
         self.validation_window = validation_window
 
@@ -355,6 +357,8 @@ class DRLEnsembleAgent:
         self.results_dir = results_dir
         self.verbose = verbose
         self.account_value = None
+        self.actions = None
+        self.executions = None
 
     def _env(self, data, **kwargs):
         return StockTradingEnv(
@@ -400,15 +404,16 @@ class DRLEnsembleAgent:
         account_value, _ = predict_episode(model, env)
         return metrics.sharpe_ratio(account_value["account_value"].pct_change())
 
-    def DRL_prediction(self, model, name, last_state, iter_num, turbulence_threshold, initial):
-        """Trade one rebalance window, continuing from ``last_state``.
-
-        Returns the final state and the window's account values.
-        """
+    def DRL_prediction(
+        self, model, name, last_state, start_index, end_index, turbulence_threshold, initial
+    ):
+        """Trade inclusive signal/valuation endpoints, preserving every transition."""
         trade_data = data_split(
             self.df,
-            start=self.unique_trade_date[iter_num - self.rebalance_window],
-            end=self.unique_trade_date[iter_num],
+            start=self.unique_trade_date[start_index],
+            end=(pd.Timestamp(self.unique_trade_date[end_index]) + pd.Timedelta(days=1)).strftime(
+                "%Y-%m-%d"
+            ),
         )
         trade_env = self._env(
             trade_data,
@@ -417,140 +422,98 @@ class DRLEnsembleAgent:
             previous_state=last_state,
             model_name=name,
             mode="trade",
-            iteration=iter_num,
+            iteration=start_index,
         )
         account_value, _ = predict_episode(model, trade_env)
         last_state = list(trade_env.render())
         os.makedirs(self.results_dir, exist_ok=True)
         pd.DataFrame({"last_state": last_state}).to_csv(
-            os.path.join(self.results_dir, "last_state_{}_{}.csv".format(name, iter_num)),
+            os.path.join(self.results_dir, "last_state_{}_{}.csv".format(name, start_index)),
             index=False,
         )
-        return last_state, account_value
+        return (
+            last_state, account_value, trade_env.save_action_memory(),
+            trade_env.save_execution_memory(),
+        )
 
     def run_ensemble_strategy(
         self, A2C_model_kwargs, PPO_model_kwargs, DDPG_model_kwargs, timesteps_dict
     ):
-        """Ensemble Strategy that combines PPO, A2C and DDPG"""
+        """Select on preceding validation dates and trade every requested transition."""
         logger.info("============Start Ensemble Strategy============")
         model_kwargs = {"a2c": A2C_model_kwargs, "ppo": PPO_model_kwargs, "ddpg": DDPG_model_kwargs}
-        # The trading env is fed the last state of the previous window so
-        # positions carry over between windows.
-        last_state_ensemble = []
-        sharpe_lists = {name: [] for name in self.MODEL_NAMES}
-        model_use = []
-        validation_start_date_list = []
-        validation_end_date_list = []
-        iteration_list = []
-        account_values = []
-
+        all_dates = np.sort(self.df[self.df.date >= self.train_period[0]].date.unique())
         daily_turbulence = (
             self.df.drop_duplicates(subset=["date"]).set_index("date")["turbulence"].sort_index()
         )
-        insample_turbulence = daily_turbulence[
-            (daily_turbulence.index >= self.train_period[0])
-            & (daily_turbulence.index < self.train_period[1])
-        ].to_numpy()
-        insample_turbulence_threshold = np.quantile(insample_turbulence, 0.90)
-
+        last_state = []
+        records, account_values, actions, executions = [], [], [], []
         start = time.time()
-        for i in range(
-            self.rebalance_window + self.validation_window,
-            len(self.unique_trade_date),
-            self.rebalance_window,
-        ):
-            validation_start_date = self.unique_trade_date[
-                i - self.rebalance_window - self.validation_window
+        for first in range(0, len(self.unique_trade_date) - 1, self.rebalance_window):
+            last = min(first + self.rebalance_window, len(self.unique_trade_date) - 1)
+            signal_date = self.unique_trade_date[first]
+            preceding = all_dates[all_dates < signal_date]
+            if len(preceding) < self.validation_window + 2:
+                raise ValueError(
+                    "Need at least {} dates before {} for fitting and validation".format(
+                        self.validation_window + 2, signal_date
+                    )
+                )
+            validation_start = preceding[-self.validation_window]
+            train = data_split(self.df, self.train_period[0], validation_start)
+            validation = data_split(self.df, validation_start, signal_date)
+            # Both the reference quantile and regime decision use fitting history only.
+            fitted_turbulence = daily_turbulence[
+                (daily_turbulence.index >= self.train_period[0])
+                & (daily_turbulence.index < validation_start)
             ]
-            validation_end_date = self.unique_trade_date[i - self.rebalance_window]
-            validation_start_date_list.append(validation_start_date)
-            validation_end_date_list.append(validation_end_date)
-            iteration_list.append(i)
-            initial = i - self.rebalance_window - self.validation_window == 0
-
-            # Tune the turbulence threshold on the quarter (63 trading days)
-            # before the validation window.
-            historical_turbulence_mean = daily_turbulence[
-                daily_turbulence.index <= validation_start_date
-            ].iloc[-63:].mean()
-            if historical_turbulence_mean > insample_turbulence_threshold:
-                # Volatile market: liquidate above the in-sample 90% quantile.
-                turbulence_threshold = insample_turbulence_threshold
-            else:
-                # Calm market: only liquidate above the in-sample maximum.
-                turbulence_threshold = np.quantile(insample_turbulence, 1)
-            if not turbulence_threshold > 0:
-                # No turbulence history yet; a zero threshold would sell every day.
-                turbulence_threshold = None
-            logger.info("turbulence_threshold: %s", turbulence_threshold)
-
-            train = data_split(self.df, start=self.train_period[0], end=validation_start_date)
-            validation = data_split(self.df, start=validation_start_date, end=validation_end_date)
-
-            logger.info(
-                "======Model training from %s to %s", self.train_period[0], validation_start_date
-            )
+            reference = float(fitted_turbulence.quantile(0.90))
+            recent_mean = fitted_turbulence.iloc[-63:].mean()
+            threshold = reference if recent_mean > reference else float(fitted_turbulence.max())
+            threshold = threshold if threshold > 0 else None
             sharpes = {}
             for name in self.MODEL_NAMES:
                 model = self._train(
-                    name, train, model_kwargs[name], timesteps_dict[name], f"{name}_{i}", i
+                    name, train, model_kwargs[name], timesteps_dict[name], f"{name}_{first}", first
                 )
                 sharpes[name] = self.DRL_validation(
-                    model, validation, turbulence_threshold, i, name
+                    model, validation, threshold, first, name
                 )
-                sharpe_lists[name].append(sharpes[name])
-                logger.info(
-                    "%s validation Sharpe (%s to %s): %.3f",
-                    name.upper(),
-                    validation_start_date,
-                    validation_end_date,
-                    sharpes[name],
-                )
-
             best = max(
                 self.MODEL_NAMES,
-                key=lambda n: -np.inf if np.isnan(sharpes[n]) else sharpes[n],
+                key=lambda name: -np.inf if np.isnan(sharpes[name]) else sharpes[name],
             )
-            model_use.append(best.upper())
-            logger.info(
-                "======Retraining %s from %s to %s",
-                best.upper(),
-                self.train_period[0],
-                validation_end_date,
+            train_full = data_split(self.df, self.train_period[0], signal_date)
+            model = self._train(
+                best, train_full, model_kwargs[best], timesteps_dict[best],
+                f"ensemble_{first}", first,
             )
-            train_full = data_split(self.df, start=self.train_period[0], end=validation_end_date)
-            model_ensemble = self._train(
-                best, train_full, model_kwargs[best], timesteps_dict[best], f"ensemble_{i}", i
+            last_state, values, window_actions, window_executions = self.DRL_prediction(
+                model=model, name="ensemble", last_state=last_state,
+                start_index=first, end_index=last, turbulence_threshold=threshold,
+                initial=first == 0,
             )
-
-            logger.info(
-                "======Trading from %s to %s",
-                validation_end_date,
-                self.unique_trade_date[i],
-            )
-            last_state_ensemble, window_values = self.DRL_prediction(
-                model=model_ensemble,
-                name="ensemble",
-                last_state=last_state_ensemble,
-                iter_num=i,
-                turbulence_threshold=turbulence_threshold,
-                initial=initial,
-            )
-            account_values.append(window_values)
-
+            # Adjacent windows share the signal close, not a return or a fill.
+            if account_values:
+                values = values.iloc[1:]
+            account_values.append(values)
+            actions.append(window_actions)
+            executions.append(window_executions)
+            records.append({
+                "Iter": first,
+                "Val Start": validation_start,
+                "Val End": preceding[-1],
+                "Trade Start": signal_date,
+                "Trade End": self.unique_trade_date[last],
+                "Transitions": last - first,
+                "Model Used": best.upper(),
+                "A2C Sharpe": sharpes["a2c"],
+                "PPO Sharpe": sharpes["ppo"],
+                "DDPG Sharpe": sharpes["ddpg"],
+            })
         logger.info("Ensemble Strategy took %.1f minutes", (time.time() - start) / 60)
         if account_values:
             self.account_value = pd.concat(account_values, ignore_index=True)
-
-        df_summary = pd.DataFrame(
-            {
-                "Iter": iteration_list,
-                "Val Start": validation_start_date_list,
-                "Val End": validation_end_date_list,
-                "Model Used": model_use,
-                "A2C Sharpe": sharpe_lists["a2c"],
-                "PPO Sharpe": sharpe_lists["ppo"],
-                "DDPG Sharpe": sharpe_lists["ddpg"],
-            }
-        )
-        return df_summary
+            self.actions = pd.concat(actions)
+            self.executions = pd.concat(executions, ignore_index=True)
+        return pd.DataFrame(records)

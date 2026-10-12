@@ -1,7 +1,9 @@
 """Rule-based portfolios to benchmark trained agents against.
 
-Each function takes a long (date, tic) frame with a ``close`` column and
-returns a frame with ``date`` and ``account_value`` columns, the same format
+Each function takes a long (date, tic) frame with finite positive ``open``
+and ``close`` prices. Signals formed at a close fill at the next session's open;
+the first date therefore records the initial capital entirely in cash. Each
+function returns a frame with ``date`` and ``account_value`` columns, the same format
 as :meth:`rl.env.env_stocktrading.StockTradingEnv.save_asset_memory`.
 """
 
@@ -9,79 +11,133 @@ import numpy as np
 import pandas as pd
 
 
-def _close_matrix(df):
-    prices = df.pivot_table(index="date", columns="tic", values="close").sort_index()
-    if prices.isna().any().any():
-        raise ValueError("Every date must have a close price for every ticker")
-    return prices
+def _price_matrices(df):
+    for column in ("open", "close"):
+        if column not in df.columns:
+            raise ValueError("Data is missing column '{}'".format(column))
+    close = df.pivot(index="date", columns="tic", values="close").sort_index()
+    open_prices = df.pivot(index="date", columns="tic", values="open").reindex(
+        index=close.index, columns=close.columns
+    )
+    if close.empty:
+        raise ValueError("Data is empty")
+    for name, frame in (("open", open_prices), ("close", close)):
+        values = frame.to_numpy(dtype=float)
+        if not np.isfinite(values).all() or (values <= 0).any():
+            raise ValueError("Every date and ticker must have finite positive {} prices".format(name))
+    return open_prices, close
+
+
+def _rebalance_positions(cash, positions, weights, transaction_cost_pct):
+    """Solve self-financing fractional targets at the current execution prices.
+
+    For pre-trade equity B and post-fee equity V, solve
+    V + fee * sum(abs(weights * V - positions)) = B. The left side is
+    piecewise linear and convex. Every non-final Newton step from B crosses
+    a breakpoint, so the solver needs at most one step per position plus
+    the final linear solve. A reusable work array avoids per-step allocations.
+    """
+    fee = float(transaction_cost_pct)
+    if not np.isfinite(fee) or fee < 0:
+        raise ValueError("transaction_cost_pct must be finite and nonnegative")
+    total = float(cash + positions.sum())
+    net = total
+    cost = 0.0
+    if fee:
+        work = np.empty_like(positions)
+        for _ in range(positions.size + 2):
+            np.multiply(weights, net, out=work)
+            np.subtract(work, positions, out=work)
+            np.sign(work, out=work)
+            slope = 1 + fee * np.dot(work, weights)
+            if slope <= 0:
+                raise ValueError("Transaction costs leave no self-financing portfolio")
+            adjusted = (total + fee * np.dot(work, positions)) / slope
+            if adjusted < 0:
+                raise ValueError("Transaction costs leave no self-financing portfolio")
+            converged = abs(adjusted - net) <= 4 * np.spacing(max(1.0, abs(total)))
+            net = adjusted
+            if converged:
+                break
+        else:
+            raise ArithmeticError("Fee-adjusted portfolio rebalance did not converge")
+    target = weights * net
+    if fee:
+        np.subtract(target, positions, out=work)
+        np.abs(work, out=work)
+        cost = float(fee * work.sum())
+    return target, float(total - target.sum() - cost), cost
 
 
 def buy_and_hold(df, initial_amount=1_000_000, buy_cost_pct=0.0):
-    """Split cash equally across all tickers on the first day and hold."""
-    prices = _close_matrix(df)
-    first = prices.iloc[0].to_numpy()
-    budget = initial_amount / len(first)
-    shares = budget / (first * (1 + buy_cost_pct))
-    values = prices.to_numpy() @ shares
-    return pd.DataFrame({"date": prices.index, "account_value": values})
+    """Split cash equally at the second date's open, then hold shares."""
+    open_prices, close = _price_matrices(df)
+    values = np.empty(len(close))
+    values[0] = initial_amount
+    if len(close) > 1:
+        first_fill = open_prices.iloc[1].to_numpy(dtype=float)
+        budget = initial_amount / len(first_fill)
+        shares = budget / (first_fill * (1 + buy_cost_pct))
+        values[1:] = close.to_numpy(dtype=float)[1:] @ shares
+    return pd.DataFrame({"date": close.index, "account_value": values})
 
 
 def equal_weight_rebalanced(
     df, initial_amount=1_000_000, transaction_cost_pct=0.0, rebalance_every=21
 ):
-    """Equal-weight portfolio rebalanced every ``rebalance_every`` days.
+    """Equal-weight targets signaled every ``rebalance_every`` sessions.
 
-    Transaction costs are charged on the value traded at each rebalance.
+    The first signal is on date zero and fills at date one's open. Subsequent
+    rebalances also fill at the next open and pay fees on actual traded notional.
     """
     if rebalance_every < 1:
         raise ValueError("rebalance_every must be at least 1")
-    frame = _close_matrix(df)
-    prices = frame.to_numpy()
-    n_days, n_tickers = prices.shape
+    open_prices, close = _price_matrices(df)
+    opens = open_prices.to_numpy(dtype=float)
+    closes = close.to_numpy(dtype=float)
+    n_days, n_tickers = closes.shape
     target = np.full(n_tickers, 1.0 / n_tickers)
-    positions = initial_amount * target / (1 + transaction_cost_pct)
+    shares = np.zeros(n_tickers)
+    cash = float(initial_amount)
     values = np.empty(n_days)
-    values[0] = positions.sum()
+    values[0] = initial_amount
     for t in range(1, n_days):
-        positions = positions * prices[t] / prices[t - 1]
-        total = positions.sum()
-        if t % rebalance_every == 0:
-            # Charge costs on the value traded to get back to equal weights.
-            turnover = np.abs(total * target - positions).sum()
-            total -= transaction_cost_pct * turnover
-            positions = total * target
-        values[t] = total
-    return pd.DataFrame({"date": frame.index, "account_value": values})
+        if (t - 1) % rebalance_every == 0:
+            positions, cash, _ = _rebalance_positions(
+                cash, shares * opens[t], target, transaction_cost_pct
+            )
+            shares = positions / opens[t]
+        values[t] = cash + np.dot(shares, closes[t])
+    return pd.DataFrame({"date": close.index, "account_value": values})
 
 
 def target_weights_strategy(df, weights, initial_amount=1_000_000, transaction_cost_pct=0.0):
-    """Account values of a portfolio rebalanced daily to target weights.
+    """Rebalance to signal-date target weights at the next session's open.
 
-    ``weights`` is indexed by date with one column per ticker: the fraction
-    of the account to hold in each stock from that day's close to the next.
-    Whatever is not invested is cash; weights summing to more than one
-    borrow cash at no interest. Transaction costs are charged on the value
-    traded at each rebalance.
+    ``weights`` has one ticker column and one row per fillable signal date,
+    i.e. all dates except the final date. A supplied final row is ignored.
+    Targets are fractions of post-fee equity; uninvested equity remains cash
+    and weights summing to more than one borrow cash at no interest.
+    Prior holdings retain their overnight P&L before each rebalance.
     """
-    frame = _close_matrix(df)
-    weights = weights.reindex(index=frame.index, columns=frame.columns)
-    if weights.isna().any().any():
-        raise ValueError("weights must cover every date and ticker of df")
-    prices = frame.to_numpy()
+    open_prices, close = _price_matrices(df)
+    weights = weights.reindex(index=close.index[:-1], columns=close.columns)
     targets = weights.to_numpy(dtype=float)
-    positions = np.zeros(prices.shape[1])
-    total = float(initial_amount)
-    values = np.empty(len(prices))
-    for t in range(len(prices)):
-        if t > 0:
-            new_positions = positions * prices[t] / prices[t - 1]
-            total += (new_positions - positions).sum()
-            positions = new_positions
-        target = total * targets[t]
-        total -= transaction_cost_pct * np.abs(target - positions).sum()
-        positions = total * targets[t]
-        values[t] = total
-    return pd.DataFrame({"date": frame.index, "account_value": values})
+    if not np.isfinite(targets).all():
+        raise ValueError("weights must cover every signal date and ticker with finite values")
+    opens = open_prices.to_numpy(dtype=float)
+    closes = close.to_numpy(dtype=float)
+    shares = np.zeros(closes.shape[1])
+    cash = float(initial_amount)
+    values = np.empty(len(closes))
+    values[0] = initial_amount
+    for t in range(1, len(closes)):
+        positions, cash, _ = _rebalance_positions(
+            cash, shares * opens[t], targets[t - 1], transaction_cost_pct
+        )
+        shares = positions / opens[t]
+        values[t] = cash + np.dot(shares, closes[t])
+    return pd.DataFrame({"date": close.index, "account_value": values})
 
 
 def baseline_account_values(df, initial_amount=1_000_000, transaction_cost_pct=0.0):

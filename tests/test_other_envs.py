@@ -4,12 +4,20 @@ import numpy as np
 import pytest
 from stable_baselines3.common.env_checker import check_env
 
-from conftest import TECH
+from conftest import TECH, make_panel
 from rl.env.env_portfolio import StockPortfolioEnv
 from rl.env.env_stocktrading_cashpenalty import StockTradingEnvCashpenalty
 from rl.env.env_stocktrading_stoploss import StockTradingEnvStopLoss
 from rl.preprocessing.data import data_split
 from rl.preprocessing.preprocessors import add_covariance_matrix
+from rl.trade.baselines import target_weights_strategy
+
+
+def make_portfolio_panel(closes, **columns):
+    data = make_panel(closes, **columns)
+    n = data["tic"].nunique()
+    data["cov_list"] = [np.zeros((n, n)) for _ in range(len(data))]
+    return data
 
 
 def run_episode(env, scale=1.0, seed=0):
@@ -37,6 +45,11 @@ def test_portfolio_env(processed):
     np.testing.assert_allclose(weights.sum(axis=1), 1.0)
     # One row per decision, dated by the day it was made, as in StockTradingEnv.
     assert list(weights.index) == list(values.date.iloc[:-1])
+    executions = env.save_execution_memory()
+    assert list(executions.columns) == ["signal_date", "fill_date"] + env.tickers
+    assert list(executions.signal_date) == list(values.date.iloc[:-1])
+    assert list(executions.fill_date) == list(values.date.iloc[1:])
+    np.testing.assert_allclose(executions[env.tickers], weights)
 
 
 def test_portfolio_weights_are_dated_when_chosen(processed):
@@ -76,11 +89,13 @@ def test_portfolio_first_allocation_pays_costs(processed):
     data = data_split(add_covariance_matrix(processed, lookback=60), "2017-01-01", "2017-03-01")
     env = StockPortfolioEnv(data, 3, 100, 1e6, 0.01, 1e-4, 3, 3, TECH)
     env.reset()
-    # Equal weights from cash: the whole account is invested and pays 1%.
+    # Cost is paid on the bought notional, not on the initial pre-fee capital.
     env.step(np.zeros(3, dtype=np.float32))
-    assert env.cost == pytest.approx(0.01 * 1e6)
-    relative = env.data.close.to_numpy() / data.loc[0].close.to_numpy()
-    assert env.portfolio_value == pytest.approx(0.99e6 * relative.mean())
+    invested = 1e6 / 1.01
+    assert env.cost == pytest.approx(0.01 * invested)
+    rows = env.data.sort_values("tic")
+    relative = rows.close.to_numpy() / rows.open.to_numpy()
+    assert env.portfolio_value == pytest.approx(invested * relative.mean())
 
 
 def test_portfolio_log_return_reward(processed):
@@ -92,6 +107,84 @@ def test_portfolio_log_return_reward(processed):
     assert reward == pytest.approx(np.log(env.portfolio_value / begin))
     with pytest.raises(ValueError):
         StockPortfolioEnv(data, 3, 100, 1e6, 0.0, 1.0, 3, 3, TECH, reward_type="sharpe")
+
+
+def test_portfolio_gap_rebalance_matches_independent_fee_accounting():
+    data = make_portfolio_panel(
+        [[10, 10], [30, 10], [25, 30]],
+        open=[[8, 12], [20, 10], [40, 20]],
+    )
+    env = StockPortfolioEnv(data, 2, 100, 1000, 0.01, 1.0, 2, 2, [])
+    env.reset()
+    assert env.cash == 1000
+    np.testing.assert_allclose(env.holdings, [0, 0])
+    _, first_reward, _, _, _ = env.step(np.zeros(2))
+    # Initial net equity is 1000/1.01, split at opens 20 and 10.
+    np.testing.assert_allclose(env.holdings, [2500 / 101, 5000 / 101])
+    assert env.cash == pytest.approx(0, abs=1e-10)
+    assert env.cost == pytest.approx(1000 / 101)
+    assert env.portfolio_value == pytest.approx(125000 / 101)
+    assert first_reward == pytest.approx(125000 / 101 - 1000)
+
+    # Both prior positions reach 100000/101 at the next open, despite
+    # unequal previous-close weights. The new 25%/75% targets sell T0/buy T1.
+    prior_open_equity = 200000 / 101
+    fee_before = env.cost
+    _, reward, terminated, _, _ = env.step(np.log([0.25, 0.75]))
+    assert terminated
+    # Sold/bought notional sums to half of post-fee equity.
+    post_fee_equity = prior_open_equity / 1.005
+    traded_fee = post_fee_equity * 0.005
+    np.testing.assert_allclose(
+        env.holdings, [post_fee_equity * 0.25 / 40, post_fee_equity * 0.75 / 20]
+    )
+    assert env.cost - fee_before == pytest.approx(traded_fee)
+    assert env.cash + env.holdings @ np.array([40, 20]) == pytest.approx(
+        prior_open_equity - traded_fee
+    )
+    expected_close = post_fee_equity * (0.25 * 25 / 40 + 0.75 * 30 / 20)
+    assert env.portfolio_value == pytest.approx(expected_close)
+    assert reward == pytest.approx(expected_close - 125000 / 101)
+
+    replay = target_weights_strategy(data, env.save_action_memory(), 1000, 0.01)
+    np.testing.assert_allclose(replay.account_value, env.asset_memory)
+    executions = env.save_execution_memory()
+    assert list(executions.signal_date) == list(data.date.unique()[:-1])
+    assert list(executions.fill_date) == list(data.date.unique()[1:])
+    np.testing.assert_allclose(executions[env.tickers], [[0.5, 0.5], [0.25, 0.75]])
+    with pytest.raises(RuntimeError):
+        env.step(np.zeros(2))
+
+
+def test_portfolio_overnight_drift_can_eliminate_rebalance_cost():
+    data = make_portfolio_panel(
+        [[10, 10], [30, 10], [25, 30]],
+        open=[[8, 12], [20, 10], [40, 20]],
+    )
+    env = StockPortfolioEnv(data, 2, 100, 1000, 0.01, 1.0, 2, 2, [])
+    env.reset()
+    env.step(np.zeros(2))
+    initial_cost = env.cost
+    env.step(np.zeros(2))
+    # Unequal close positions become equal at the next open: no trade is due.
+    assert env.cost == pytest.approx(initial_cost)
+    np.testing.assert_allclose(env.holdings, [2500 / 101, 5000 / 101])
+    np.testing.assert_allclose(env.asset_memory, [1000, 125000 / 101, 212500 / 101])
+
+
+@pytest.mark.parametrize("column", ["open", "close"])
+@pytest.mark.parametrize("value", [np.nan, np.inf, 0.0, -1.0])
+def test_portfolio_requires_valid_execution_prices(column, value):
+    data = make_portfolio_panel([[10], [12]])
+    data.loc[1, column] = value
+    with pytest.raises(ValueError):
+        StockPortfolioEnv(data, 1, 100, 1000, 0.01, 1.0, 1, 1, [])
+
+
+def test_portfolio_requires_raw_open_prices():
+    data = make_portfolio_panel([[10], [12]]).drop(columns="open")
+    with pytest.raises(ValueError):
+        StockPortfolioEnv(data, 1, 100, 1000, 0.01, 1.0, 1, 1, [])
 
 
 @pytest.mark.parametrize("env_class", [StockTradingEnvCashpenalty, StockTradingEnvStopLoss])

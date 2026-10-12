@@ -69,18 +69,59 @@ def test_backtest_stats_has_pyfolio_fields(capsys):
 
 
 def test_buy_and_hold_tracks_equal_initial_weights():
-    df = make_panel([[10.0, 20.0], [20.0, 20.0], [20.0, 10.0]])
+    df = make_panel(
+        [[10.0, 20.0], [20.0, 20.0], [20.0, 10.0]],
+        open=[[8.0, 25.0], [10.0, 20.0], [40.0, 5.0]],
+    )
     values = buy_and_hold(df, initial_amount=100.0).account_value.to_numpy()
-    # 5 shares of T0 and 2.5 of T1.
+    # First date is cash; the next open buys 5 T0 and 2.5 T1, held through gaps.
     np.testing.assert_allclose(values, [100.0, 150.0, 125.0])
+    costly = buy_and_hold(df, initial_amount=100.0, buy_cost_pct=0.1).account_value
+    np.testing.assert_allclose(costly, [100, 150 / 1.1, 125 / 1.1])
 
 
 def test_rebalanced_portfolio_and_costs():
-    df = make_panel([[10.0, 20.0], [20.0, 20.0], [20.0, 10.0]])
+    df = make_panel(
+        [[10.0, 20.0], [20.0, 20.0], [20.0, 10.0]],
+        open=[[10.0, 20.0], [10.0, 20.0], [20.0, 20.0]],
+    )
     values = equal_weight_rebalanced(df, 100.0, rebalance_every=1).account_value.to_numpy()
-    # Daily rebalancing earns the average of the stocks' returns each day.
+    # Signals rebalance at the next open, then earn the open-to-close return.
     np.testing.assert_allclose(values, [100.0, 150.0, 150.0 * 0.75])
     with_costs = equal_weight_rebalanced(df, 100.0, transaction_cost_pct=0.01, rebalance_every=1)
     assert (with_costs.account_value.to_numpy()[1:] < values[1:]).all()
+    # Second-fill turnover is 50/1.01, not a percentage of pre-trade targets.
+    np.testing.assert_allclose(
+        with_costs.account_value, [100, 150 / 1.01, 0.75 * 149.5 / 1.01]
+    )
     with pytest.raises(ValueError):
         equal_weight_rebalanced(df, rebalance_every=0)
+
+
+def test_rebalance_cadence_counts_signal_dates_and_retains_gap_pnl():
+    df = make_panel(
+        [[10, 20], [20, 20], [30, 20], [40, 40], [20, 40]],
+        open=[[10, 20], [10, 20], [20, 10], [40, 10], [20, 20]],
+    )
+    values = equal_weight_rebalanced(df, 100, rebalance_every=2).account_value
+    # Fill on dates 1 and 3. Five T0 and 2.5 T1 shares are held until date 3,
+    # when open equity 225 buys 2.8125 T0 and 11.25 T1 shares.
+    np.testing.assert_allclose(values, [100, 150, 200, 562.5, 506.25])
+
+
+@pytest.mark.parametrize("baseline", [buy_and_hold, equal_weight_rebalanced])
+@pytest.mark.parametrize("column", ["open", "close"])
+@pytest.mark.parametrize("value", [np.nan, np.inf, 0.0, -1.0])
+def test_baselines_require_finite_positive_execution_prices(baseline, column, value):
+    df = make_panel([[10], [12]])
+    df.loc[1, column] = value
+    with pytest.raises(ValueError):
+        baseline(df)
+
+
+@pytest.mark.parametrize("baseline", [buy_and_hold, equal_weight_rebalanced])
+def test_baselines_require_raw_open_and_start_single_date_in_cash(baseline):
+    df = make_panel([[10]])
+    np.testing.assert_allclose(baseline(df, 100, 0.01).account_value, [100])
+    with pytest.raises(ValueError):
+        baseline(df.drop(columns="open"))

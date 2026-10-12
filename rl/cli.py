@@ -89,7 +89,8 @@ def build_parser():
     env.add_argument("--hmax", type=int, default=100, help="max shares traded per stock per day")
     env.add_argument("--initial-amount", type=float, default=1_000_000)
     env.add_argument(
-        "--transaction-cost", type=float, default=0.001, help="fraction paid on each buy and sell"
+        "--transaction-cost", type=float, default=None,
+        help="fraction paid on each buy and sell (train: 0.001; backtest: saved setting)",
     )
     env.add_argument("--reward-type", choices=("asset_change", "log_return"), default="asset_change")
     env.add_argument("--reward-scaling", type=float, help="default: 1e-4 (asset_change), 1 (log_return)")
@@ -124,6 +125,7 @@ def _train_config(options):
     from rl.autotrain.training import TrainConfig
 
     data_source = options.data_source or ("csv" if options.data_file else "yahoo")
+    transaction_cost = 0.001 if options.transaction_cost is None else options.transaction_cost
     reward_scaling = options.reward_scaling
     if reward_scaling is None:
         reward_scaling = 1.0 if options.reward_type == "log_return" else 1e-4
@@ -142,8 +144,8 @@ def _train_config(options):
         turbulence_quantile=options.turbulence_quantile,
         hmax=options.hmax,
         initial_amount=options.initial_amount,
-        buy_cost_pct=options.transaction_cost,
-        sell_cost_pct=options.transaction_cost,
+        buy_cost_pct=transaction_cost,
+        sell_cost_pct=transaction_cost,
         reward_scaling=reward_scaling,
         reward_type=options.reward_type,
         cov_lookback=options.cov_lookback,
@@ -214,6 +216,10 @@ def main(argv=None):
             ["data_file", "start_trade_date", "end_date", "benchmark", "turbulence_threshold",
              "results_dir", "leverage"],
         )
+        if options.transaction_cost is not None:
+            overrides.update(
+                buy_cost_pct=options.transaction_cost, sell_cost_pct=options.transaction_cost
+            )
         if options.data_source or options.data_file:
             overrides["data_source"] = options.data_source or "csv"
         if "benchmark" in overrides:

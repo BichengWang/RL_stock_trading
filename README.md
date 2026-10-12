@@ -303,6 +303,16 @@ the Yahoo downloader's column handling, and short end-to-end runs of the
 train, backtest, portfolio, LSTM, CLI and ensemble pipelines, plus the
 forecaster's features, windows, loss and trading rule.
 
+## Pull requests
+
+Use `type(scope): title` for PR titles, for example
+`feat(workspace): add workspace switching` or
+`docs(repo): add pull request guidelines`. Choose the type and scope that
+describe the change.
+
+The [PR template](.github/pull_request_template.md) asks for a short summary
+and verification results. Review the diff and wait for CI to pass before merging.
+
 ## License
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.

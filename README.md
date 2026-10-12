@@ -108,6 +108,18 @@ python main.py --mode backtest --model-dir trained_models/<run-name> \
 Artifacts must record `execution_timing: "next_open"`; older same-close models
 must be retrained, even if their stable-baselines3 version is otherwise compatible.
 
+Omitting `--transaction-cost` preserves the checkpoint's saved buy/sell fees.
+An explicit value overrides both, including `0` and `0.001`:
+
+```bash
+python main.py --mode backtest --model-dir trained_models/<run-name> \
+    --transaction-cost 0.005
+```
+
+Fees must be finite fractions in `[0, 1)`. Backtests write their effective
+settings to `results/<run>/run_config.json`; the saved checkpoint settings
+remain unchanged.
+
 
 ### Portfolio allocation
 
@@ -228,6 +240,44 @@ On the final year, PPO's seed-average return and Sharpe exceeded the baselines,
 but its drawdown was larger; SAC's mean return was lower and varied more by seed.
 These are simulation results for this snapshot, not a general alpha claim.
 
+### Transaction-cost sensitivity of frozen policies
+
+Replay the selected final PPO/SAC checkpoints without retraining:
+
+```bash
+python -m rl.autotrain.experiment \
+    --experiment-dir results/evaluation_2010_2024_next_open \
+    --costs 0.001 0.0025 0.005 \
+    --output-dir results/cost_sensitivity_2024
+```
+
+The costs are 10, 25 and 50 basis points **per buy and per sell**, applied
+equally to the agents and both baselines. Omit `--costs` for these defaults.
+The replay verifies the frozen input SHA-256, development-validation selection
+and complete final agent/seed cohort before creating its output directory.
+Keep the original experiment's `models/`, copied input and metadata together:
+the bundle can be moved without relying on its old CSV/model paths.
+
+The output directory must be new; its default is `<experiment-dir>/cost_sensitivity`.
+It contains the copied input, a manifest with checkpoint/config/normalizer
+hashes and replay software versions, per-fee/seed backtest artifacts and effective
+settings, `performance_runs.csv`, and seed mean/std/min/max in `summary.csv`.
+Each baseline is recorded once per fee. Duplicate, non-finite or out-of-range
+costs are rejected.
+
+Policies and observation-normalisation statistics are frozen, but their actions
+can change as higher costs alter cash and holdings; this is policy replay,
+not subtraction of estimated fees from an existing equity curve. Realized
+returns therefore need not be monotonic in the fee. These are **post-test
+diagnostics**, not a new untouched holdout or another checkpoint-selection round.
+Training options cannot be mixed with `--experiment-dir`. Spread, market impact
+and financing costs remain unmodeled.
+
+The completed reference replay is in `results/cost_sensitivity_2024/`: 18
+policy replays plus two baselines per fee. At 10 bps it reproduces the original
+final-period results. PPO's mean-return lead persists at 50 bps, with larger
+drawdowns than buy-and-hold; SAC's mean return remains below buy-and-hold.
+
 ### Options
 
 Run `python main.py --help` for the full list. The most useful ones:
@@ -241,7 +291,7 @@ Run `python main.py --help` for the full list. The most useful ones:
 | `--tickers` | Dow 30 | tickers to trade |
 | `--start-date`, `--start-trade-date`, `--end-date` | 2000-01-01, 2019-01-01, 2021-01-01 | training period is `[start, start-trade)`, trading period `[start-trade, end)` |
 | `--seed` | none | makes runs reproducible |
-| `--transaction-cost` | 0.001 | fraction paid on every buy and sell |
+| `--transaction-cost` | training: 0.001; backtest: saved setting | finite fraction in `[0, 1)` paid on every buy and sell; explicit backtest values override both saved fees |
 | `--hmax` | 100 | maximum shares traded per stock per day |
 | `--reward-type` | `asset_change` | or `log_return` |
 | `--cov-lookback` | 252 | portfolio task: days of returns in each covariance matrix |
@@ -261,6 +311,7 @@ A run named `<run>` (default: timestamp and agent) writes:
 | `trained_models/<run>/model.zip` | the trained stable-baselines3 model (the best validation checkpoint with `--validation-days`) |
 | `trained_models/<run>/vecnormalize.pkl` | observation-normalisation statistics |
 | `trained_models/<run>/run_config.json` | every setting, frozen tickers, eligibility cutoff, execution timing and turbulence threshold |
+| `results/<run>/run_config.json` | saved-model backtest: effective settings and source checkpoint directory, including any overridden fees |
 | `results/<run>/account_value.csv` | daily account value over the trading period |
 | `results/<run>/actions.csv` | signal-date-indexed signed executed shares; target weights for portfolio/LSTM |
 | `results/<run>/executions.csv` | signal date, next-session fill date and signed shares or target weights |

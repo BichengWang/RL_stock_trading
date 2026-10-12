@@ -10,7 +10,9 @@ import numpy as np
 import pandas as pd
 import torch
 
-from rl.autotrain.training import TrainConfig, normalize_date, run_training
+from rl.autotrain.training import (
+    TrainConfig, load_run_config, normalize_date, run_backtest, run_training,
+)
 
 
 # Deliberately small search, identical networks and budgets within each algorithm.
@@ -155,23 +157,153 @@ def run_experiment(
     return {"selected": selected, "summary": summary, "output_dir": str(out)}
 
 
+def run_cost_sensitivity(
+    experiment_dir, costs=(0.001, 0.0025, 0.005), *, output_dir=None
+):
+    """Replay the selected final policies under symmetric fees, without retraining.
+
+    This is a diagnostic on an already-opened final period, not a new holdout
+    or another policy-selection stage. Policies and normalization stay frozen;
+    their actions can respond to the different cash/holdings caused by fees.
+    """
+    fees = [float(cost) for cost in costs]
+    if not fees or len(set(fees)) != len(fees):
+        raise ValueError("Provide at least one cost and no duplicate costs")
+    if any(not np.isfinite(fee) or not 0 <= fee < 1 for fee in fees):
+        raise ValueError("Transaction costs must be finite and in [0, 1)")
+    source = Path(experiment_dir).resolve()
+    manifest = json.loads((source / "manifest.json").read_text())
+    selection = json.loads((source / "selection.json").read_text())
+    content = (source / "input_prices.csv").read_bytes()
+    digest = hashlib.sha256(content).hexdigest()
+    if digest != manifest["data_sha256"] or digest != selection["data_sha256"]:
+        raise ValueError("Frozen input SHA-256 does not match the experiment and selection")
+    validation = pd.read_csv(source / "validation_runs.csv")
+    selected = selection["selected"]
+    if selected != select_candidates(validation):
+        raise ValueError("Saved selection disagrees with development validation scores")
+    final = validation[validation.phase == "final"]
+    expected = {(agent, seed) for agent in selected for seed in manifest["seeds"]}
+    actual = set(zip(final.agent, final.seed))
+    if actual != expected or len(final) != len(expected):
+        raise ValueError("Final model cohort must contain each selected agent/seed exactly once")
+    models, identities = [], []
+    for row in final.itertuples(index=False):
+        # Use the bundle layout, not machine-specific paths stored in the CSV.
+        model_dir = source / "models" / Path(row.model_dir).name
+        cfg, saved = load_run_config(model_dir)
+        if (
+            row.candidate != selected[row.agent]
+            or cfg.agent != row.agent or cfg.seed != row.seed
+            or cfg.start_trade_date != manifest["final_start"]
+            or cfg.end_date != manifest["end_date"]
+            or saved.get("data_sha256") != digest
+            or saved["tickers"] != manifest["tickers"]
+            or (cfg.model_kwargs or {}).get("learning_rate") != manifest["candidates"][row.candidate]
+        ):
+            raise ValueError("Final model metadata disagrees with its selected cohort: " + str(model_dir))
+        artifacts = ["model.zip", "run_config.json"]
+        if cfg.normalize_observations:
+            artifacts.append("vecnormalize.pkl")
+        identities.append({
+            "agent": row.agent, "seed": int(row.seed), "candidate": row.candidate,
+            "model_dir": str(model_dir),
+            "sha256": {
+                name: hashlib.sha256((model_dir / name).read_bytes()).hexdigest()
+                for name in artifacts
+            },
+        })
+        models.append((row.agent, int(row.seed), row.candidate, model_dir))
+    out = (source / "cost_sensitivity" if output_dir is None else Path(output_dir)).resolve()
+    out.mkdir(parents=True, exist_ok=False)
+    snapshot = out / "input_prices.csv"
+    snapshot.write_bytes(content)
+    stress_manifest = {
+        "source_experiment": str(source), "data_sha256": digest,
+        "selected": selected, "seeds": manifest["seeds"], "models": identities,
+        "transaction_costs": fees, "execution_timing": "next_open",
+        "final_start": manifest["final_start"], "end_date": manifest["end_date"],
+        "policy_selection": "unchanged; diagnostic replay only",
+        "limitations": manifest["limitations"],
+        "versions": {name: importlib.metadata.version(name) for name in manifest["versions"]},
+    }
+    (out / "manifest.json").write_text(json.dumps(stress_manifest, indent=2) + "\n")
+    torch.set_num_threads(1)
+    records = []
+    for fee in fees:
+        baseline_recorded = False
+        for agent, seed, candidate, model_dir in models:
+            result = run_backtest(
+                str(model_dir), data_source="csv", data_file=str(snapshot),
+                buy_cost_pct=fee, sell_cost_pct=fee,
+                results_dir=str(out / "runs" / f"fee_{fee!r}" / model_dir.name),
+            )
+            for strategy in result["stats"].columns:
+                is_agent = strategy == agent.upper()
+                if not is_agent and baseline_recorded:
+                    continue
+                records.append({
+                    "transaction_cost": fee, "strategy": strategy,
+                    "candidate": candidate if is_agent else "baseline",
+                    "seed": seed if is_agent else None,
+                    "results_dir": result["results_dir"],
+                    **{metric: float(result["stats"].loc[metric, strategy]) for metric in METRICS},
+                })
+            baseline_recorded = True
+        pd.DataFrame(records).to_csv(out / "performance_runs.csv", index=False)
+    frame = pd.DataFrame(records)
+    summary = frame.groupby(["transaction_cost", "strategy"], sort=True)[list(METRICS)].agg(
+        ["mean", "std", "min", "max"]
+    )
+    summary.columns = [f"{metric} {stat}" for metric, stat in summary.columns]
+    summary.to_csv(out / "summary.csv")
+    return {"selected": selected, "summary": summary, "output_dir": str(out)}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-file", required=True)
-    parser.add_argument("--tickers", nargs="+", required=True)
-    parser.add_argument("--start-date", default="2010-01-01")
-    parser.add_argument("--fold-starts", nargs="+", default=["2018-01-01", "2020-01-01", "2022-01-01"])
-    parser.add_argument("--final-start", default="2024-01-01")
-    parser.add_argument("--end-date", default="2025-01-01")
-    parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
-    parser.add_argument("--timesteps", type=int, default=20_000)
-    parser.add_argument("--validation-days", type=int, default=126)
-    parser.add_argument("--output-dir", default="results/evaluation")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--data-file", help="train a new frozen-data experiment")
+    source.add_argument("--experiment-dir", help="replay an existing experiment's final policies")
+    training = parser.add_argument_group("training (with --data-file)")
+    training.add_argument("--tickers", nargs="+")
+    training.add_argument("--start-date")
+    training.add_argument("--fold-starts", nargs="+")
+    training.add_argument("--final-start")
+    training.add_argument("--end-date")
+    training.add_argument("--seeds", nargs="+", type=int)
+    training.add_argument("--timesteps", type=int)
+    training.add_argument("--validation-days", type=int)
+    parser.add_argument("--costs", nargs="+", type=float, help="symmetric fee fractions for replay")
+    parser.add_argument("--output-dir", help="new output directory; never overwrites prior results")
     options = vars(parser.parse_args(argv))
-    options["total_timesteps"] = options.pop("timesteps")
-    result = run_experiment(**options)
-    print("Selected settings:", result["selected"])
-    print(result["summary"].loc["final"].to_string())
+    experiment_dir = options.pop("experiment_dir")
+    data_file = options.pop("data_file")
+    costs = options.pop("costs")
+    output_dir = options.pop("output_dir")
+    if experiment_dir is not None:
+        if any(value is not None for value in options.values()):
+            parser.error("Training arguments cannot change an existing experiment's cost replay")
+        kwargs = {} if costs is None else {"costs": costs}
+        result = run_cost_sensitivity(experiment_dir, output_dir=output_dir, **kwargs)
+        table = result["summary"]
+    else:
+        if costs is not None:
+            parser.error("--costs requires --experiment-dir; it is not a training selection option")
+        if not options["tickers"]:
+            parser.error("--tickers is required with --data-file")
+        options = {key: value for key, value in options.items() if value is not None}
+        options["fold_starts"] = options.get("fold_starts", ["2018-01-01", "2020-01-01", "2022-01-01"])
+        options["final_start"] = options.get("final_start", "2024-01-01")
+        options["end_date"] = options.get("end_date", "2025-01-01")
+        if "timesteps" in options:
+            options["total_timesteps"] = options.pop("timesteps")
+        if output_dir is not None:
+            options["output_dir"] = output_dir
+        result = run_experiment(data_file=data_file, **options)
+        table = result["summary"].loc["final"]
+    print("Selected settings (unchanged during cost replay):", result["selected"])
+    print(table.to_string())
     print("Artifacts:", result["output_dir"])
 
 

@@ -124,6 +124,10 @@ class TrainConfig:
             raise ValueError("The ensemble strategy supports only the trading task")
         if self.cov_lookback < 2:
             raise ValueError("cov_lookback must be at least 2")
+        for name in ("buy_cost_pct", "sell_cost_pct"):
+            cost = getattr(self, name)
+            if not np.isfinite(cost) or not 0 <= cost < 1:
+                raise ValueError("{} must be finite and in [0, 1)".format(name))
         if self.data_source not in DATA_SOURCES:
             raise ValueError("data_source must be one of {}".format(DATA_SOURCES))
         if self.data_source == "csv" and not self.data_file:
@@ -599,24 +603,34 @@ def run_backtest(model_dir, **overrides):
     cfg, saved = load_run_config(model_dir)
     cfg = dataclasses.replace(cfg, **{k: v for k, v in overrides.items() if v is not None})
     cfg.validate()
-    if cfg.agent == "lstm":
-        return _backtest_lstm(model_dir, cfg, saved)
-    tickers = saved["tickers"]
-    _, _, trade = prepare_data(
-        cfg, tickers=tickers, eligibility_cutoff=saved["eligibility_cutoff"]
-    )
-    kwargs = env_kwargs(cfg, len(tickers))
     threshold = saved.get("resolved_turbulence_threshold") if cfg.use_turbulence else None
     if cfg.task == "trading" and overrides.get("turbulence_threshold") is not None:
         threshold = float(overrides["turbulence_threshold"])
-
-    model, normalizer = load_model(model_dir, cfg.agent, make_env(cfg, trade, kwargs))
-    out_dir = os.path.join(
-        cfg.results_dir,
-        "{}_backtest_{}".format(saved["run_name"], datetime.datetime.now().strftime("%Y%m%d-%H%M%S")),
+    if cfg.agent == "lstm":
+        result = _backtest_lstm(model_dir, cfg, saved)
+    else:
+        tickers = saved["tickers"]
+        _, _, trade = prepare_data(
+            cfg, tickers=tickers, eligibility_cutoff=saved["eligibility_cutoff"]
+        )
+        kwargs = env_kwargs(cfg, len(tickers))
+        model, normalizer = load_model(model_dir, cfg.agent, make_env(cfg, trade, kwargs))
+        out_dir = os.path.join(
+            cfg.results_dir,
+            "{}_backtest_{}".format(
+                saved["run_name"], datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            ),
+        )
+        result = _trade(model, cfg, trade, kwargs, threshold, out_dir, obs_normalizer=normalizer)
+        result.update(run_name=saved["run_name"], model_dir=model_dir, results_dir=out_dir)
+    effective = dataclasses.asdict(cfg)
+    effective.update(
+        run_name=saved["run_name"], tickers=saved["tickers"],
+        eligibility_cutoff=saved["eligibility_cutoff"], execution_timing="next_open",
+        resolved_turbulence_threshold=threshold, source_model_dir=os.path.abspath(model_dir),
     )
-    result = _trade(model, cfg, trade, kwargs, threshold, out_dir, obs_normalizer=normalizer)
-    result.update(run_name=saved["run_name"], model_dir=model_dir, results_dir=out_dir)
+    with open(os.path.join(result["results_dir"], "run_config.json"), "w", encoding="utf-8") as f:
+        json.dump(effective, f, indent=2, default=_to_jsonable)
     return result
 
 

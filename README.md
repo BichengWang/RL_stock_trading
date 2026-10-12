@@ -381,6 +381,16 @@ boundaries, complete ensemble transitions, metrics and baselines, Yahoo's
 adjusted OHLC handling, saved-model replay and short offline runs of all
 active pipelines. Experiment-selection tests exclude final-period scores.
 
+## Pull requests
+
+Use `type(scope): title` for PR titles, for example
+`feat(workspace): add workspace switching` or
+`docs(repo): add pull request guidelines`. Choose the type and scope that
+describe the change.
+
+The [PR template](.github/pull_request_template.md) asks for a short summary
+and verification results. Review the diff and wait for CI to pass before merging.
+
 ## License
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.

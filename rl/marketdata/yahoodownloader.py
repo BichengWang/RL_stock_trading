@@ -45,9 +45,9 @@ class YahooDownloader:
         -------
         `pd.DataFrame`
             date, open, high, low, close, volume, tic and day columns.
-            The close column contains the adjusted closing price. Empty
-            downloads are skipped; if none succeed, the same columns are
-            returned in an empty frame.
+            All OHLC prices use the adjusted-close basis, so open-to-close
+            returns do not mix raw and adjusted prices. Empty downloads are
+            skipped; if none succeed, an empty frame with the same columns is returned.
         """
         # Download and save the data in a pandas DataFrame:
         columns = ["date", "open", "high", "low", "close", "volume", "tic", "day"]
@@ -60,8 +60,8 @@ class YahooDownloader:
         }
         frames = []
         for tic in self.ticker_list:
-            # Keep raw OHLC and adjusted close separate, as in the original
-            # downloader, regardless of yfinance's auto_adjust default.
+            # Explicitly adjust all OHLC by the same factor, independent of
+            # yfinance defaults and flat versus multi-index response layouts.
             temp_df = yf.download(
                 tic, start=self.start_date, end=self.end_date, auto_adjust=False
             )
@@ -76,13 +76,17 @@ class YahooDownloader:
                 # Yahoo normalizes ticker case; retain the requested tic in
                 # the output without using its spelling as a column key.
                 temp_df.columns = temp_df.columns.droplevel(-1)
-            missing = set(price_columns).difference(temp_df.columns)
+            missing = (set(price_columns) | {"Close"}).difference(temp_df.columns)
             if missing:
                 raise ValueError(
                     "Missing Yahoo Finance columns for {}: {}".format(
                         tic, ", ".join(sorted(missing))
                     )
                 )
+            adjustment = temp_df["Adj Close"] / temp_df["Close"]
+            temp_df[["Open", "High", "Low"]] = temp_df[["Open", "High", "Low"]].mul(
+                adjustment, axis=0
+            )
             temp_df = temp_df[list(price_columns)].rename(columns=price_columns)
             temp_df.columns.name = None
             temp_df = temp_df.rename_axis("date").reset_index()

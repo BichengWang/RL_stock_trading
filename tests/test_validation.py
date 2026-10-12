@@ -46,6 +46,10 @@ def test_training_keeps_the_best_validation_checkpoint(tmp_path):
     assert saved["best_validation_timesteps"] == best.timesteps
     assert saved["best_validation_sharpe"] == pytest.approx(best.sharpe)
     assert saved["validation_days"] == 60
+    raw_training_dates = pd.bdate_range(cfg.start_date, cfg.start_trade_date, inclusive="left")
+    assert saved["eligibility_cutoff"] == raw_training_dates[-60].strftime("%Y-%m-%d")
+    assert saved["tickers"] == ["AAA", "BBB", "CCC"]
+    assert saved["execution_timing"] == "next_open"
 
     # The saved files are the checkpoint that was used for trading.
     replay = run_backtest(result["model_dir"], results_dir=str(tmp_path / "replay"))

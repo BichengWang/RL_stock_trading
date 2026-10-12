@@ -2,7 +2,7 @@
 
 ## Full document:
 
-We beat 90% portfolio managers.   
+Historical 2021 paper and recorded results (not evidence of current out-of-sample performance):
 https://drive.google.com/file/d/1-ogSAAA5L0sdy1iLt8HQKwV2kcN1UuCc/view?usp=sharing
 
 Paper Copy: [Applying Deep Learning to Stock Trading](docs/Wang_Zhang_2021_Deep_Learning_Stock_Trading_arxiv.pdf)
@@ -89,6 +89,13 @@ The test period is never used for this choice. Each evaluation is listed in
 `results/<run>/validation.csv`, and `run_config.json` records which checkpoint
 was chosen.
 
+Ticker eligibility is decided from fitting history only, before validation.
+The sorted universe is then frozen for validation, trading and saved-model
+replay. Missing or invalid open/close prices in these held-out panels raise
+a ticker/date error instead of silently changing the universe or dropping
+sessions. The split uses observed raw session dates; it does not infer an
+exchange calendar for sessions missing from every ticker.
+
 ### Backtesting a saved model
 
 Each training run saves its model, observation-normalisation statistics and
@@ -98,15 +105,19 @@ settings, so it can be re-run on the same or a different period:
 python main.py --mode backtest --model-dir trained_models/<run-name> \
     --start-trade-date 2020-01-01 --end-date 2021-01-01
 ```
+Artifacts must record `execution_timing: "next_open"`; older same-close models
+must be retrained, even if their stable-baselines3 version is otherwise compatible.
+
 
 ### Portfolio allocation
 
 `--task portfolio` swaps share trading for portfolio allocation: every day the
-agent picks long-only weights for the tickers (they sum to one) and holds them
-until the next close, paying transaction costs on the turnover. Its
-observation is the return covariance matrix of the last `--cov-lookback` days
-stacked on the technical indicators, so the first `--cov-lookback` days of
-data are used up as warm-up and the training period must be longer than that:
+agent picks long-only weights at the close, rebalances at the next session's
+open, and values its positions at that session's close. Existing holdings keep
+their overnight returns, and transaction costs are paid on actual turnover.
+Its observation is the return covariance matrix of the last `--cov-lookback`
+days stacked on technical indicators. Covariance warm-up must leave at least
+two fitting sessions; it cannot consume validation or trading sessions.
 
 ```bash
 python main.py --mode train --task portfolio --agent ppo --timesteps 50000
@@ -115,8 +126,8 @@ python main.py --mode train --task portfolio --data-source synthetic \
     --end-date 2020-01-01 --agent ppo --timesteps 20000 --seed 0
 ```
 
-`actions.csv` then holds the weights chosen at each day's close (held until
-the next close) instead of share counts. A saved
+`actions.csv` holds the target weights chosen at each signal close instead of
+share counts; `executions.csv` pairs each signal with its next-session fill. A saved
 portfolio model is backtested like any other (`--mode backtest --model-dir
 ...`). `--hmax` and the turbulence options do not apply to this task, and the
 ensemble supports only `--task trading`.
@@ -124,11 +135,11 @@ ensemble supports only `--task trading`.
 ### LSTM forecasting strategy
 
 The paper's other approach: instead of learning actions end to end, a
-two-layer LSTM forecasts every ticker's next close and a simple rule trades
-on the forecasts. Each day the strategy holds a stock (with `1/N` of the
-account, times `--leverage`) when its forecast is at or above today's close,
-and keeps that share of the account in cash otherwise. It is benchmarked
-against the same baselines as the agents:
+two-layer LSTM forecasts every ticker's next close. At each signal close,
+the rule targets `1/N` of the account, times `--leverage`, for each stock whose
+forecast is at or above that close, and keeps the rest in cash. These targets
+fill at the next open, not at the price used to make the forecast. It is
+benchmarked against the same baselines as the agents:
 
 ```bash
 python main.py --mode lstm --lstm-epochs 30
@@ -144,14 +155,17 @@ absolute percentage error (MAPE) loss (`--lstm-loss mse` is the alternative),
 so it fits low- and high-price periods equally. The inputs are the last
 `--lstm-window` days of each ticker's log returns and technical indicators,
 made scale free (moving averages and bands as ratios to the close; other
-indicators standardised with training-period statistics). The most recent
-10% of the training days are held out, and the epoch with the lowest
-validation loss is kept.
+indicators standardised with fitting-period statistics). The most recent
+10% of raw training sessions are held out, and the epoch with the lowest
+validation loss is kept. Scaling excludes validation, and a fitting signal
+whose next-close label lies in validation is excluded from fitting.
 
 The run also writes `predictions.csv` (each day's close, forecast, next close
 and signal), `forecast_metrics.csv` (MAPE and directional accuracy over the
 trading period) and `training_history.csv` (losses per epoch); `actions.csv`
-holds the daily weights and the model is saved as `model.pt`.
+holds fillable signal-date weights, `executions.csv` records signal/fill dates,
+and the model is saved as `model.pt`. The last forecast has no subsequent
+session within the requested period and therefore produces no trade.
 
 ### Ensemble strategy
 
@@ -163,6 +177,56 @@ trades the next window, carrying positions over:
 ```bash
 python main.py --mode ensemble --timesteps 20000 --rebalance-window 63 --validation-window 63
 ```
+
+Validation precedes the first requested trading date. Each rebalance window
+owns its price transitions, sharing only its boundary close with the next
+window. The final partial window is included. `ensemble_summary.csv` records
+validation dates, inclusive signal/valuation endpoints and transition counts;
+`results/<run>/run_config.json` records the frozen universe and eligibility cutoff.
+
+### Frozen-data, multi-seed evaluation
+
+Use a fixed CSV rather than re-downloading between agents or seeds:
+
+```bash
+python main.py --mode download_data --tickers SPY TLT GLD \
+    --start-date 2010-01-01 --end-date 2025-01-01 \
+    --output datasets/evaluation_prices.csv
+python -m rl.autotrain.experiment --data-file datasets/evaluation_prices.csv \
+    --tickers SPY TLT GLD --fold-starts 2018-01-01 2020-01-01 2022-01-01 \
+    --final-start 2024-01-01 --end-date 2025-01-01 --seeds 0 1 2 \
+    --timesteps 20000 --validation-days 126 --output-dir results/evaluation
+```
+
+This runs PPO and SAC with learning rates `3e-4` and `1e-3` on three expanding
+development folds and three training seeds. Each fit holds out its preceding
+126 sessions for checkpoint selection. Mean development **validation** Sharpe
+selects a learning rate per algorithm; development trading returns do not
+select settings. Selection is written before evaluating the untouched final
+2024 test period. A candidate with undefined validation Sharpe on any run
+cannot win. This is a small comparison, not proof of statistical superiority.
+
+The output directory must be new. It contains the exact `input_prices.csv`,
+a SHA-256/version/settings `manifest.json`, `selection.json`,
+`validation_runs.csv`, `performance_runs.csv`, per-fold/seed variability in
+`summary.csv`, and each run's models and normal backtest artifacts. Baselines
+are deterministic and recorded once per fold. Preserve the copied input and
+manifest: later Yahoo downloads may revise adjusted historical prices.
+
+The explicit ETF universe is not a point-in-time constituent history. Prices
+use a consistent adjusted OHLC basis, modeling reinvested distributions rather
+than raw exchange fills. Spread, impact and cash/borrowing interest are not
+modeled. Training seeds measure policy variability, not independent market
+samples. Synthetic data verifies the pipeline, not profitability.
+
+The completed reference run is in `results/evaluation_2010_2024_next_open/`:
+36 development runs and six final runs, with 20,000 requested steps per fit.
+Validation selected PPO at `3e-4` and SAC at `1e-3`. Its frozen input SHA-256 is
+`c580fdbaa445c1731ba2cfb07caffa7f73fdaa9cffcf8a812f6551800082737e`.
+`summary.csv` contains the exact returns, Sharpe, drawdowns and seed dispersion.
+On the final year, PPO's seed-average return and Sharpe exceeded the baselines,
+but its drawdown was larger; SAC's mean return was lower and varied more by seed.
+These are simulation results for this snapshot, not a general alpha claim.
 
 ### Options
 
@@ -196,9 +260,10 @@ A run named `<run>` (default: timestamp and agent) writes:
 | --- | --- |
 | `trained_models/<run>/model.zip` | the trained stable-baselines3 model (the best validation checkpoint with `--validation-days`) |
 | `trained_models/<run>/vecnormalize.pkl` | observation-normalisation statistics |
-| `trained_models/<run>/run_config.json` | every setting, the tickers and the turbulence threshold used |
+| `trained_models/<run>/run_config.json` | every setting, frozen tickers, eligibility cutoff, execution timing and turbulence threshold |
 | `results/<run>/account_value.csv` | daily account value over the trading period |
-| `results/<run>/actions.csv` | shares bought (+) or sold (-) per ticker per day; portfolio weights for `--task portfolio` |
+| `results/<run>/actions.csv` | signal-date-indexed signed executed shares; target weights for portfolio/LSTM |
+| `results/<run>/executions.csv` | signal date, next-session fill date and signed shares or target weights |
 | `results/<run>/perf_stats.csv` | agent, baselines and benchmark side by side |
 | `results/<run>/backtest.png` | cumulative return and drawdown chart |
 | `results/<run>/validation.csv` | with `--validation-days`: validation Sharpe and return at each evaluation |
@@ -206,9 +271,10 @@ A run named `<run>` (default: timestamp and agent) writes:
 The statistics are those of pyfolio's `perf_stats` (annual return, Sharpe,
 Sortino, Calmar, max drawdown, ...) plus the final account value. The agent is
 always compared with an equal-weight buy-and-hold portfolio and an equal-weight
-portfolio rebalanced monthly, both paying the same transaction costs. A
-`--benchmark` index is shown as if the starting capital had been invested in
-it, so its final value is comparable with the agent's.
+portfolio rebalanced monthly. Both start in cash on the first valuation date,
+buy at the next open and include transaction costs in reported returns.
+A `--benchmark` index is a hypothetical buy-and-hold account with the same
+timing, starting capital and buy cost, making its value comparable with the agent's.
 
 ### Python API
 
@@ -220,34 +286,47 @@ result = run_training(TrainConfig(agent="ppo", total_timesteps=50_000, data_sour
 print(result["stats"])
 ```
 
-The building blocks (`YahooDownloader`, `FeatureEngineer`, `data_split`,
-`StockTradingEnv`, `DRLAgent`, `backtest_stats`, `backtest_plot`) keep their
-names and arguments, so the notebooks' workflow still applies.
+Core building-block names remain (`YahooDownloader`, `FeatureEngineer`,
+`data_split`, `StockTradingEnv`, `DRLAgent`, `backtest_stats`, `backtest_plot`).
+Active environments and baselines require finite positive `open` and `close`
+prices on the same adjustment basis. Notebook outputs and the legacy
+cash-penalty/stop-loss experiments are historical, not results of this workflow.
 
 ## The trading environment
 
 `rl.env.env_stocktrading.StockTradingEnv` holds cash and whole shares. Each day
-the agent outputs a value in [-1, 1] per stock, scaled by `hmax` into shares to
-sell (negative) or buy (positive) at the close. Sells execute first, then buys
-from the largest order down, limited by the cash available **including**
-transaction costs. When the turbulence index of the day is at or above the
-threshold, all positions are sold (paying costs) and buying is blocked. The
-observation is `[cash, prices, holdings, indicators]`; by default the pipeline
-standardises it with running statistics, because these differ by several
-orders of magnitude.
+the agent observes the close and indicators, then outputs a value in [-1, 1]
+per stock, scaled by `hmax` into shares to sell (negative) or buy (positive).
+Orders fill at the next session's open. Sells execute first, then buys from
+the largest order down, limited by cash **including** transaction costs.
+Signal-day turbulence at or above the threshold schedules liquidation at the
+next open and blocks buying; fill-day indicators do not influence that decision.
+Prior holdings retain overnight P&L. The account is marked at each close,
+including the final session. Observation layout stays
+`[cash, prices, holdings, indicators]`, standardised by running statistics.
 
 `rl.env.env_portfolio.StockPortfolioEnv` (used by `--task portfolio`) holds a
 fractional, long-only portfolio. The agent outputs one score in [0, 1] per
 stock and a softmax turns the scores into weights, so no stock gets more than
 about e times the weight of another: the agent tilts away from an equal-weight
 portfolio rather than concentrating in a few names. Between rebalances the
-weights drift with prices; rebalancing pays the transaction cost on the
-difference between the drifted and the new weights. The account starts in
-cash, so the first allocation pays it on the whole portfolio, like the
-baselines' initial purchase.
+weights drift with prices, including the overnight move before rebalancing.
+Fees and post-fee target notionals are solved together so cash plus holdings
+remains self-financing. The account starts in cash; its first allocation pays
+fees at the next open, just like the baselines' initial purchase.
 
 ## Changes from the 2021 version
 
+- **Causal evaluation.** Eligibility is fitted before validation and frozen
+  thereafter; incomplete held-out panels fail explicitly. LSTM scaling and
+  fitting labels exclude validation outcomes.
+- **Next-open execution.** Active agents, forecasting strategy, baselines and
+  optional benchmark use close signals and next-open fills. Yahoo OHLC now
+  shares one adjustment basis. Execution CSVs distinguish signal/fill dates.
+- **Complete rolling accounting.** The ensemble includes its partial final
+  window and preserves every return and fill at window boundaries.
+- **Reproducible comparison.** Frozen-data PPO/SAC evaluation records settings,
+  software versions, input identity, validation-only choices and seed variability.
 - **Modern dependencies.** Runs on current Python, pandas, NumPy, gymnasium and
   stable-baselines3 2.x. Environments use the gymnasium API: `reset()` returns
   `(obs, info)` and `step()` returns `(obs, reward, terminated, truncated, info)`.
@@ -258,11 +337,10 @@ baselines' initial purchase.
 - **Environment accounting fixes.** Buys could spend more cash than available
   (costs were ignored when sizing orders); forced turbulence sales recorded no
   transaction cost; failed buys were counted as trades.
-- **No look-ahead or cross-ticker leakage in features.** Missing values used to
-  be back-filled across the whole frame, pulling values from later rows and
-  other tickers. Each ticker is now forward-filled from its own past only, and
-  tickers that are missing for much of the period (such as stocks listed
-  part-way through) are dropped instead of crashing the environment.
+- **Causal indicator filling.** Missing indicators used to be back-filled across
+  the whole frame, pulling values from later rows and other tickers. Each ticker
+  is now forward-filled from its own past only. Universe coverage is fitted
+  only on fitting history, not on the full train/test panel.
 - **Deterministic evaluation.** Trading uses the policy's deterministic action
   (it previously sampled random actions).
 - **Hyperparameter dicts are not modified** when building a model (reusing a
@@ -277,9 +355,9 @@ baselines' initial purchase.
   data sources, rule-based baselines, saved run configurations, and an offline
   test suite with CI.
 
-Trained models from the old version cannot be loaded (they were saved with
-stable-baselines3 0.11). The notebooks were run with the 2021 stack; their
-saved outputs are kept as a record.
+Models without `execution_timing: "next_open"` cannot be replayed; retrain
+them under the causal execution contract. The original 2021 models also used
+stable-baselines3 0.11. Archived notebooks retain their historical outputs.
 
 ## Tests
 
@@ -297,11 +375,11 @@ pip install -e ".[lint]"
 ruff check .
 ```
 
-They cover the environments' accounting, feature engineering (including a
-check that no future data leaks into earlier rows), the metrics and baselines,
-the Yahoo downloader's column handling, and short end-to-end runs of the
-train, backtest, portfolio, LSTM, CLI and ensemble pipelines, plus the
-forecaster's features, windows, loss and trading rule.
+They cover accounting with overnight/intraday gaps, exact fee-adjusted
+allocation, causal universe selection and features, validation/LSTM label
+boundaries, complete ensemble transitions, metrics and baselines, Yahoo's
+adjusted OHLC handling, saved-model replay and short offline runs of all
+active pipelines. Experiment-selection tests exclude final-period scores.
 
 ## Pull requests
 

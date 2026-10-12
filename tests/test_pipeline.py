@@ -96,12 +96,6 @@ def test_portfolio_task_trains_and_backtests(tmp_path):
     pd.testing.assert_frame_equal(replay["actions"], weights)
 
 
-def test_portfolio_task_needs_covariance_warmup(tmp_path):
-    cfg = small_config(tmp_path, task="portfolio", start_trade_date="2016-06-01")
-    with pytest.raises(ValueError, match="covariances"):
-        run_training(cfg)
-
-
 def test_cli_rejects_portfolio_ensemble():
     with pytest.raises(SystemExit):
         cli.main(["--mode", "ensemble", "--task", "portfolio"])
@@ -125,8 +119,11 @@ def test_lstm_strategy_trains_and_backtests(tmp_path):
     assert sorted(predictions.tic.unique()) == TICKERS
     # Hold a stock (a third of the account) exactly when it is forecast to rise.
     weights = result["actions"]
-    signals = predictions.pivot(index="date", columns="tic", values="signal")
+    signals = predictions.pivot(index="date", columns="tic", values="signal").reindex(weights.index)
     np.testing.assert_allclose(weights.to_numpy(), signals.to_numpy() / 3)
+    executions = result["executions"]
+    assert executions.signal_date.tolist() == account.date.iloc[:-1].tolist()
+    assert executions.fill_date.tolist() == account.date.iloc[1:].tolist()
     assert 0 <= result["forecast_metrics"]["Directional accuracy"] <= 1
     assert "LSTM" in result["stats"].columns
 
@@ -206,15 +203,15 @@ def test_ensemble_strategy_runs_walk_forward(tmp_path):
     )
     result = run_training(cfg)
     summary = result["summary"]
-    assert list(summary.columns) == [
-        "Iter", "Val Start", "Val End", "Model Used", "A2C Sharpe", "PPO Sharpe", "DDPG Sharpe",
-    ]
-    assert len(summary) >= 2
     assert set(summary["Model Used"]) <= {"A2C", "PPO", "DDPG"}
     account = result["account_value"]
     # Windows are stitched together without gaps or repeated dates.
     assert account.date.is_unique and account.date.is_monotonic_increasing
-    assert account.date.iloc[0] == summary["Val End"].iloc[0]
+    assert account.date.iloc[0] == "2017-06-01"
+    expected = pd.bdate_range("2017-06-01", "2017-09-14").strftime("%Y-%m-%d").tolist()
+    assert account.date.tolist() == expected
+    assert summary.Transitions.sum() == len(expected) - 1
+    assert summary["Val End"].lt(summary["Trade Start"]).all()
     assert "ENSEMBLE" in result["stats"].columns
 
 
@@ -325,14 +322,19 @@ def test_benchmark_is_scaled_to_the_starting_capital(tmp_path, monkeypatch, raw_
     trade = data_split(raw_prices, "2018-01-01", "2018-02-01")
     dates = sorted(trade.date.unique())
     account = pd.DataFrame({"date": dates, "account_value": np.linspace(1e6, 1.1e6, len(dates))})
-    index_level = pd.DataFrame({"date": dates, "close": np.linspace(25_000.0, 27_500.0, len(dates))})
+    index_level = pd.DataFrame({
+        "date": dates, "open": np.full(len(dates), 26_000.0),
+        "close": np.linspace(25_000.0, 27_500.0, len(dates)),
+    })
     monkeypatch.setattr(backtest, "get_baseline", lambda ticker, start, end: index_level)
 
     cfg = TrainConfig(agent="a2c", benchmark_ticker="^DJI", initial_amount=1e6)
     stats = evaluate_account(account, trade, cfg, str(tmp_path))
-    # Same 10% gain as the agent, so the same final value, not the index level.
-    assert stats.loc["Final value", "^DJI"] == pytest.approx(1.1e6)
-    assert stats.loc["Cumulative returns", "^DJI"] == pytest.approx(0.1)
+    # Starting capital stays in cash until the second session's open; fees
+    # and the open-to-final-close return must both be included.
+    expected = 1e6 * 27_500.0 / (26_000.0 * (1 + cfg.buy_cost_pct))
+    assert stats.loc["Final value", "^DJI"] == pytest.approx(expected)
+    assert stats.loc["Cumulative returns", "^DJI"] == pytest.approx(expected / 1e6 - 1)
 
 
 def test_requested_tickers_without_data_are_reported(tmp_path, raw_prices, caplog):

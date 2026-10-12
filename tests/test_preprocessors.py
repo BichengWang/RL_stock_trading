@@ -10,6 +10,7 @@ from rl.preprocessing.preprocessors import (
     add_covariance_matrix,
     balance_panel,
     calculate_turbulence,
+    require_complete_prices,
 )
 
 
@@ -114,3 +115,37 @@ def test_load_dataset_round_trip(tmp_path, raw_prices):
     loaded = load_dataset(file_name=str(path))
     assert list(loaded.columns) == list(raw_prices.columns)
     assert loaded.date.iloc[0] == raw_prices.date.iloc[0]
+
+
+@pytest.mark.parametrize("column", ["open", "close"])
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf, 0.0, -1.0])
+def test_frozen_panel_rejects_bad_raw_prices_before_feature_fill(column, value):
+    prices = pd.DataFrame({
+        "date": ["2020-01-02"], "tic": ["AAA"], "open": [10.0], "close": [11.0],
+    })
+    prices.loc[0, column] = value
+    with pytest.raises(ValueError, match=column + ".*AAA.*2020-01-02"):
+        require_complete_prices(prices, ["AAA"], ["2020-01-02"])
+
+
+def test_frozen_panel_requires_raw_open_and_reports_missing_rows():
+    prices = pd.DataFrame({
+        "date": ["2020-01-02"], "tic": ["AAA"], "open": [10.0], "close": [11.0],
+    })
+    with pytest.raises(ValueError, match="requires.*open"):
+        require_complete_prices(prices.drop(columns="open"), ["AAA"], ["2020-01-02"])
+    with pytest.raises(ValueError, match="BBB.*2020-01-02"):
+        require_complete_prices(prices, ["AAA", "BBB"], ["2020-01-02"])
+    with pytest.raises(ValueError, match="Duplicate.*AAA.*2020-01-02"):
+        require_complete_prices(pd.concat([prices, prices]), ["AAA"], ["2020-01-02"])
+
+
+def test_feature_engineer_can_preserve_a_preselected_panel(raw_prices):
+    # prepare_data owns eligibility and passes clean_data=False: the feature
+    # stage must not make a second, full-period ticker eligibility decision.
+    dates = sorted(raw_prices.date.unique())
+    late = raw_prices[(raw_prices.tic == "AAA") & (raw_prices.date >= dates[400])].assign(tic="NEW")
+    selected = pd.concat([raw_prices, late], ignore_index=True)
+    processed = FeatureEngineer(tech_indicator_list=TECH, clean_data=False).preprocess_data(selected)
+    assert sorted(processed.tic.unique()) == sorted(TICKERS + ["NEW"])
+    assert len(processed) == len(selected)

@@ -56,6 +56,12 @@ def test_episode_length_accounting_and_memories(processed):
     actions = env.save_action_memory()
     assert actions.shape == (n_days - 1, env.stock_dim)
     assert list(actions.columns) == sorted(data["tic"].unique())
+    assert list(actions.index) == env.date_memory[:-1]
+    executions = env.save_execution_memory()
+    assert list(executions.columns) == ["signal_date", "fill_date"] + env.tickers
+    assert list(executions.signal_date) == env.date_memory[:-1]
+    assert list(executions.fill_date) == env.date_memory[1:]
+    np.testing.assert_array_equal(executions[env.tickers], actions)
     with pytest.raises(RuntimeError):
         env.step(np.zeros(env.stock_dim))
 
@@ -67,10 +73,10 @@ def test_buy_and_sell_charge_costs():
     env.step(np.array([1.0]))  # buy 10 shares at 10 with 1% cost
     assert env.holdings[0] == 10
     assert env.cash == pytest.approx(1000 - 10 * 10 * 1.01)
-    env.step(np.array([-0.5]))  # sell 5 shares at 10 with 1% cost
+    env.step(np.array([-0.5]))  # sell 5 shares at the final day's open of 12
     assert env.holdings[0] == 5
-    assert env.cash == pytest.approx(899 + 5 * 10 * 0.99)
-    assert env.cost == pytest.approx(1.0 + 0.5)
+    assert env.cash == pytest.approx(899 + 5 * 12 * 0.99)
+    assert env.cost == pytest.approx(1.0 + 0.6)
     assert env.trades == 2
     # Final value uses the last day's price.
     assert env.asset_memory[-1] == pytest.approx(env.cash + 5 * 12)
@@ -107,7 +113,11 @@ def test_larger_buy_orders_fill_first_when_cash_is_short():
 
 
 def test_turbulence_liquidates_with_costs_and_blocks_buys():
-    df = make_panel([[10.0], [10.0], [10.0], [10.0]], turbulence=[0, 0, 99, 99])
+    df = make_panel(
+        [[10.0], [15.0], [18.0], [8.0]],
+        open=[[10.0], [12.0], [20.0], [16.0]],
+        turbulence=[0, 0, 99, 0],
+    )
     env = make_env(df, hmax=10, initial_amount=1000.0, cost=0.01, turbulence_threshold=50)
     env.reset()
     env.step(np.array([1.0]))
@@ -117,8 +127,8 @@ def test_turbulence_liquidates_with_costs_and_blocks_buys():
     assert env.holdings[0] == 20
     env.step(np.array([1.0]))  # day 2 is turbulent: sell everything
     assert env.holdings[0] == 0
-    # The old environment recorded zero cost for forced liquidations.
-    assert env.cost == pytest.approx(cost_before + 1.0 + 20 * 10 * 0.01)
+    assert env.cash == pytest.approx(1000 - 10 * 12 * 1.01 - 10 * 20 * 1.01 + 20 * 16 * 0.99)
+    assert env.cost == pytest.approx(cost_before + 10 * 20 * 0.01 + 20 * 16 * 0.01)
 
 
 def test_continues_from_previous_state():
@@ -133,7 +143,7 @@ def test_continues_from_previous_state():
 
 
 def test_log_return_reward():
-    df = make_panel([[10.0], [12.0]])
+    df = make_panel([[10.0], [12.0]], open=[[10.0], [10.0]])
     env = make_env(df, hmax=10, initial_amount=100.0, reward_type="log_return", reward_scaling=2.0)
     env.reset()
     _, reward, terminated, _, _ = env.step(np.array([1.0]))
@@ -142,7 +152,7 @@ def test_log_return_reward():
 
 
 def test_reward_is_scaled_asset_change():
-    df = make_panel([[10.0], [12.0]])
+    df = make_panel([[10.0], [12.0]], open=[[10.0], [10.0]])
     env = make_env(df, hmax=10, initial_amount=100.0, reward_scaling=0.5)
     env.reset()
     _, reward, _, _, _ = env.step(np.array([1.0]))
@@ -158,3 +168,60 @@ def test_rejects_unbalanced_data_and_bad_dimensions():
         StockTradingEnv(df, 2, 10, 1000, 0, 0, 1, 99, 2, [])
     with pytest.raises(ValueError, match="reward_type"):
         make_env(df, reward_type="sharpe")
+
+
+def test_gap_fills_preserve_overnight_pnl_and_charge_actual_notional():
+    df = make_panel(
+        [[10.0], [30.0], [25.0]],
+        open=[[8.0], [20.0], [40.0]],
+        macd=[[1.0], [2.0], [3.0]],
+    )
+    env = make_env(df, tech=["macd"], hmax=100, initial_amount=1000, cost=0.01)
+    initial, _ = env.reset()
+    np.testing.assert_allclose(initial, [1000, 10, 0, 1])
+    _, first_reward, _, _, _ = env.step([1.0])
+    # The signal close of 10 cannot buy 99 shares: the next open of 20 can buy 49.
+    assert env.holdings[0] == 49
+    assert env.cash == pytest.approx(10.2)
+    assert env.cost == pytest.approx(9.8)
+    assert env.asset_memory[-1] == pytest.approx(1480.2)
+    assert first_reward == pytest.approx(480.2)
+    np.testing.assert_allclose(env.state, [10.2, 30, 49, 2])
+
+    _, second_reward, terminated, _, _ = env.step([-0.1])
+    assert terminated
+    assert env.holdings[0] == 39
+    assert env.cash == pytest.approx(406.2)  # 10 shares sold at 40, fee 4.
+    assert env.cost == pytest.approx(13.8)
+    # Prior 49 shares earn the overnight +10 gap; remaining 39 lose 15 intraday.
+    assert second_reward == pytest.approx(49 * 10 - 4 - 39 * 15)
+    assert env.asset_memory[-1] == pytest.approx(1381.2)
+    np.testing.assert_allclose(env.save_action_memory()["T0"], [49, -10])
+    executions = env.save_execution_memory()
+    assert list(executions.signal_date) == list(df.date.unique()[:-1])
+    assert list(executions.fill_date) == list(df.date.unique()[1:])
+
+
+def test_previous_holdings_earn_gap_before_next_open_sale():
+    df = make_panel([[10.0], [7.0]], open=[[10.0], [20.0]])
+    env = make_env(df, hmax=10, initial=False, previous_state=[50, 10, 3], cost=0.1)
+    env.reset()
+    _, reward, _, _, _ = env.step([-1])
+    assert env.holdings[0] == 0
+    assert env.cash == pytest.approx(104)
+    assert env.asset_memory == pytest.approx([80, 104])
+    assert reward == pytest.approx(3 * (20 - 10) - 6)
+
+
+@pytest.mark.parametrize("column", ["open", "close"])
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf, 0.0, -1.0])
+def test_rejects_nonfinite_or_nonpositive_execution_prices(column, value):
+    df = make_panel([[10.0], [12.0]])
+    df.loc[1, column] = value
+    with pytest.raises(ValueError):
+        make_env(df)
+
+
+def test_requires_raw_open_prices():
+    with pytest.raises(ValueError):
+        make_env(make_panel([[10.0], [12.0]]).drop(columns="open"))

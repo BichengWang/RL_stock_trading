@@ -2,7 +2,7 @@
 
 The agent holds cash and whole shares of ``stock_dim`` stocks. At each step it
 outputs one number in [-1, 1] per stock, which is scaled by ``hmax`` into a
-number of shares to sell (negative) or buy (positive) at the day's close.
+number of shares to sell (negative) or buy (positive) at the next day's open.
 
 State vector (kept identical to the original FinRL layout so saved
 ``previous_state`` lists stay valid)::
@@ -59,7 +59,10 @@ def panel_arrays(df, columns):
         if column not in frame.columns:
             raise ValueError("Data is missing column '{}'".format(column))
         values = frame[column].to_numpy(dtype=np.float64).reshape(n_days, n_tickers)
-        if np.isnan(values).any():
+        if column in ("open", "close"):
+            if not np.isfinite(values).all() or (values <= 0).any():
+                raise ValueError("Column '{}' must contain finite positive prices".format(column))
+        elif np.isnan(values).any():
             raise ValueError("Column '{}' contains missing values".format(column))
         arrays[column] = values
     dates = frame["date"].to_numpy().reshape(n_days, n_tickers)[:, 0]
@@ -81,7 +84,7 @@ class StockTradingEnv(gym.Env):
     An episode starts on ``day`` and ends when the last day of ``df`` is
     reached, so it lasts ``len(days) - 1 - day`` steps. With
     ``turbulence_threshold`` set, every position is liquidated (and buying is
-    blocked) on days whose turbulence index is at or above the threshold.
+    blocked) at the next open when the signal day's turbulence meets the threshold.
     """
 
     metadata = {"render_modes": ["human"]}
@@ -136,7 +139,7 @@ class StockTradingEnv(gym.Env):
         self.reward_type = reward_type
         self.results_dir = results_dir
 
-        columns = ["close"] + self.tech_indicator_list
+        columns = ["open", "close"] + self.tech_indicator_list
         if turbulence_threshold is not None:
             columns.append("turbulence")
         self.dates, self.tickers, arrays = panel_arrays(df, columns)
@@ -158,6 +161,7 @@ class StockTradingEnv(gym.Env):
             raise ValueError("Need at least two days of data after the start day")
         if not self.initial and len(self.previous_state) != self.state_space:
             raise ValueError("previous_state must have state_space entries when initial=False")
+        self.open_prices = arrays["open"]
         self.close_prices = arrays["close"]
         # Tech-major layout: all stocks for indicator 1, then indicator 2, ...
         if self.tech_indicator_list:
@@ -227,10 +231,9 @@ class StockTradingEnv(gym.Env):
             and self.turbulence >= self.turbulence_threshold
         )
 
-    def _sell(self, index, shares):
-        """Sell up to ``shares`` of stock ``index``; return shares sold."""
-        price = self.prices[index]
-        if price <= 0 or self.holdings[index] <= 0:
+    def _sell(self, index, shares, price):
+        """Sell up to ``shares`` at the next open; return shares sold."""
+        if self.holdings[index] <= 0:
             return 0
         shares = min(shares, self.holdings[index])
         gross = price * shares
@@ -240,11 +243,8 @@ class StockTradingEnv(gym.Env):
         self.trades += 1
         return shares
 
-    def _buy(self, index, shares):
-        """Buy up to ``shares`` of stock ``index`` with cash on hand."""
-        price = self.prices[index]
-        if price <= 0:
-            return 0
+    def _buy(self, index, shares, price):
+        """Buy up to ``shares`` at the next open with cash on hand."""
         # Costs are paid in cash too, so they limit how much can be bought.
         affordable = np.floor(self.cash / (price * (1 + self.buy_cost_pct)))
         shares = min(shares, affordable)
@@ -258,20 +258,21 @@ class StockTradingEnv(gym.Env):
         return shares
 
     def _execute(self, actions):
-        """Turn raw actions into trades and return the signed shares traded."""
+        """Execute the signal at the next open using signal-day turbulence."""
         actions = np.clip(np.asarray(actions, dtype=np.float64).reshape(self.stock_dim), -1, 1)
         # Whole shares only; truncate towards zero as the original env did.
         target = np.trunc(actions * self.hmax)
+        fill_prices = self.open_prices[self.day + 1]
         if self._turbulent():
             # Market is in turmoil: liquidate everything and do not buy.
             target = -self.holdings.copy()
         executed = np.zeros(self.stock_dim)
         for index in np.where(target < 0)[0]:
-            executed[index] = -self._sell(index, -target[index])
+            executed[index] = -self._sell(index, -target[index], fill_prices[index])
         buys = np.where(target > 0)[0]
         # Largest orders first, as in the original environment.
         for index in buys[np.argsort(-target[buys], kind="stable")]:
-            executed[index] = self._buy(index, target[index])
+            executed[index] = self._buy(index, target[index], fill_prices[index])
         return executed
 
     # ------------------------------------------------------------------
@@ -385,13 +386,19 @@ class StockTradingEnv(gym.Env):
         return pd.DataFrame({"date": self.date_memory, "account_value": self.asset_memory})
 
     def save_action_memory(self):
-        """Signed shares traded on each day, one column per ticker."""
+        """Signed shares filled at the next open, indexed by signal date."""
         df_actions = pd.DataFrame(
             np.asarray(self.actions_memory).reshape(-1, self.stock_dim),
             columns=self.tickers,
         )
         df_actions.index = pd.Index(self.date_memory[:-1], name="date")
         return df_actions
+
+    def save_execution_memory(self):
+        """Signal/fill dates and signed executed shares, one column per ticker."""
+        executions = self.save_action_memory().reset_index().rename(columns={"date": "signal_date"})
+        executions.insert(1, "fill_date", self.date_memory[1:])
+        return executions
 
     def get_sb_env(self):
         e = DummyVecEnv([lambda: self])

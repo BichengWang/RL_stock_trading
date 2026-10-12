@@ -105,7 +105,8 @@ class TrainConfig:
     lstm_batch_size: int = 256
     lstm_learning_rate: float = 1e-3
     lstm_loss: str = "mape"
-    # fraction of the training days (the most recent) held out for validation
+    # Hold out floor(fraction * raw pre-trade sessions), most recent first.
+    # The last fitting signal is purged if its next-close label is held out.
     lstm_validation_fraction: float = 0.1
     leverage: float = 1.0
     verbose: int = 0
@@ -198,33 +199,98 @@ def load_market_data(cfg):
     return df.reset_index(drop=True)
 
 
-def prepare_data(cfg, tickers=None):
-    """Return ``(processed, train, trade)`` frames for ``cfg``.
+def _eligibility_cutoff(cfg, dates):
+    """Exclusive fitting end, determined only from raw pre-trade sessions.
 
-    With ``tickers`` given, the processed data must contain exactly those
-    tickers (used when reloading a trained model).
+    LSTM holds out floor(fraction * raw training sessions), not a fraction
+    of label-bearing windows. Thus eligibility, scaling and labels all use
+    one date boundary, independent of feature warm-up or ticker coverage.
+    """
+    if cfg.agent == "ensemble":
+        n_validation = cfg.validation_window
+    elif cfg.agent == "lstm":
+        n_validation = int(len(dates) * cfg.lstm_validation_fraction)
+    else:
+        n_validation = cfg.validation_days
+    if n_validation:
+        if n_validation < 2 and cfg.agent != "lstm":
+            raise ValueError("The validation period must contain at least 2 raw sessions")
+        if n_validation > len(dates) - 2:
+            raise ValueError("Not enough fitting sessions before the validation period")
+        return dates[-n_validation], dates[-n_validation]
+    return cfg.start_trade_date, None
+
+
+def prepare_data(cfg, tickers=None, eligibility_cutoff=None):
+    """Return ``(processed, train, trade)`` with a causally frozen universe.
+
+    Eligibility is fitted only before the exclusive ``eligibility_cutoff``.
+    By default that boundary excludes the configured validation sessions.
+    Saved ``tickers`` bypass eligibility selection; replay can also supply
+    the saved cutoff. Fitting history may drop incomplete dates according
+    to :func:`balance_panel`, but validation/trading sessions never do.
+    All frames carry ``eligibility_cutoff``, ``eligibility_tickers`` and
+    ``validation_start_date`` in their attrs.
     """
     from rl.preprocessing.data import data_split
-    from rl.preprocessing.preprocessors import FeatureEngineer, add_covariance_matrix
+    from rl.preprocessing.preprocessors import (
+        FeatureEngineer,
+        add_covariance_matrix,
+        balance_panel,
+        require_complete_prices,
+    )
 
-    raw = load_market_data(cfg)
-    if tickers is not None:
-        raw = raw[raw["tic"].isin(tickers)]
+    raw = load_market_data(cfg).copy()
+    raw["date"] = raw["date"].astype(str)
+    training_dates = sorted(raw.loc[raw["date"] < cfg.start_trade_date, "date"].unique())
+    if eligibility_cutoff is None:
+        cutoff, validation_start = _eligibility_cutoff(cfg, training_dates)
+    else:
+        cutoff = normalize_date(eligibility_cutoff, "eligibility_cutoff")
+        validation_start = cutoff if cutoff < cfg.start_trade_date else None
+    # Replay may move trading earlier than the saved fit boundary. Those
+    # observed trading sessions must still be checked, never history-balanced.
+    evaluation_start = min(cutoff, cfg.start_trade_date)
+    fitting = raw[raw["date"] < evaluation_start]
+    if tickers is None:
+        fitting = balance_panel(fitting)
+        frozen = sorted(fitting["tic"].unique())
+    else:
+        frozen = sorted(set(tickers))
+        fitting = fitting[fitting["tic"].isin(frozen)].drop_duplicates(["date", "tic"])
+        counts = fitting.groupby("date")["tic"].nunique()
+        fitting = fitting[fitting["date"].isin(counts[counts == len(frozen)].index)]
+    if not frozen or fitting.empty:
+        raise ValueError("No eligible ticker fitting history before {}".format(cutoff))
+    evaluation_dates = sorted(raw.loc[raw["date"] >= evaluation_start, "date"].unique())
+    evaluation = raw[(raw["date"] >= evaluation_start) & raw["tic"].isin(frozen)]
+    require_complete_prices(fitting, frozen, fitting["date"].unique())
+    require_complete_prices(evaluation, frozen, evaluation_dates)
+    selected = pd.concat([fitting, evaluation], ignore_index=True)
     fe = FeatureEngineer(
         use_technical_indicator=True,
         tech_indicator_list=cfg.tech_indicator_list,
         use_turbulence=cfg.use_turbulence and cfg.task == "trading",
         user_defined_feature=False,
+        clean_data=False,
     )
-    processed = fe.preprocess_data(raw)
+    processed = fe.preprocess_data(selected)
     if cfg.task == "portfolio":
-        processed = add_covariance_matrix(processed, lookback=cfg.cov_lookback)
-    if tickers is not None:
-        found = sorted(processed["tic"].unique())
-        if found != sorted(tickers):
+        if tickers is None and fitting["date"].nunique() < cfg.cov_lookback + 2:
             raise ValueError(
-                "The model was trained on {} but the data has {}".format(sorted(tickers), found)
+                "Portfolio fitting history must contain at least {} sessions before {}; "
+                "covariance warm-up cannot consume validation or trading sessions".format(
+                    cfg.cov_lookback + 2, cutoff
+                )
             )
+        processed = add_covariance_matrix(processed, lookback=cfg.cov_lookback)
+        # Covariance warm-up is allowed to trim fitting history, not evaluation.
+        require_complete_prices(processed, frozen, evaluation_dates)
+    processed.attrs.update(
+        eligibility_cutoff=cutoff,
+        eligibility_tickers=frozen,
+        validation_start_date=validation_start,
+    )
     train = data_split(processed, cfg.start_date, cfg.start_trade_date)
     trade = data_split(processed, cfg.start_trade_date, cfg.end_date)
     if train.empty or trade.index.nunique() < 2:
@@ -342,25 +408,12 @@ def _to_jsonable(value):
     return str(value)
 
 
-def scale_to_account(prices, initial_value):
-    """Account values of ``initial_value`` invested in a price series on its first day.
-
-    Index levels (e.g. ``^DJI`` around 30,000) are not comparable with an
-    account's value, so the benchmark is shown as if the starting capital had
-    been put into it.
-    """
-    close = prices["close"].to_numpy(dtype=float)
-    return pd.DataFrame(
-        {"date": prices["date"].to_numpy(), "account_value": initial_value * close / close[0]}
-    )
-
-
 def evaluate_account(
     account_value, trade, cfg, out_dir, actions=None, title="Backtest", extra=None
 ):
     """Benchmark an account against the baselines and save the results."""
     from rl.trade.backtest import compare_stats, get_baseline, plot_account_values
-    from rl.trade.baselines import baseline_account_values
+    from rl.trade.baselines import baseline_account_values, buy_and_hold
 
     os.makedirs(out_dir, exist_ok=True)
     traded = trade[trade["date"].isin(account_value["date"])]
@@ -381,8 +434,11 @@ def evaluate_account(
             if bench.empty:
                 logger.warning("No benchmark data for %s", cfg.benchmark_ticker)
             else:
-                strategies[cfg.benchmark_ticker] = scale_to_account(
-                    bench, float(account_value["account_value"].iloc[0])
+                benchmark_dates = sorted(account_value["date"].unique())
+                bench = bench.set_index("date").reindex(benchmark_dates).reset_index()
+                strategies[cfg.benchmark_ticker] = buy_and_hold(
+                    bench.assign(tic=cfg.benchmark_ticker),
+                    float(account_value["account_value"].iloc[0]), cfg.buy_cost_pct,
                 )
         except Exception as exc:  # network problems should not lose the run
             logger.warning("Could not download benchmark %s: %s", cfg.benchmark_ticker, exc)
@@ -420,7 +476,7 @@ def run_training(cfg=None):
     out_dir = os.path.join(cfg.results_dir, run_name)
 
     logger.info("==============Loading data and engineering features===========")
-    _, train, trade = prepare_data(cfg)
+    processed, train, trade = prepare_data(cfg)
     validation = None
     if cfg.validation_days:
         train, validation = split_validation(train, cfg.validation_days)
@@ -462,6 +518,8 @@ def run_training(cfg=None):
         run_name=run_name,
         tickers=tickers,
         resolved_turbulence_threshold=threshold,
+        eligibility_cutoff=processed.attrs["eligibility_cutoff"],
+        execution_timing="next_open",
     )
     obs_normalizer = "auto"
     if validator is None:
@@ -501,6 +559,7 @@ def _trade(model, cfg, trade, kwargs, threshold, out_dir, obs_normalizer="auto")
     account_value, actions = DRLAgent.DRL_prediction(
         model, trade_env, deterministic=True, obs_normalizer=obs_normalizer
     )
+    executions = trade_env.save_execution_memory()
     stats = evaluate_account(
         account_value,
         trade,
@@ -508,13 +567,21 @@ def _trade(model, cfg, trade, kwargs, threshold, out_dir, obs_normalizer="auto")
         out_dir,
         actions=actions,
         title="{} vs baselines".format(cfg.agent.upper()),
+        extra={"executions.csv": executions},
     )
-    return {"account_value": account_value, "actions": actions, "stats": stats}
+    return {
+        "account_value": account_value, "actions": actions,
+        "executions": executions, "stats": stats,
+    }
 
 
 def load_run_config(model_dir):
     with open(os.path.join(model_dir, "run_config.json"), encoding="utf-8") as f:
         saved = json.load(f)
+    if saved.get("execution_timing") != "next_open":
+        raise ValueError(
+            "Saved model does not use execution_timing='next_open'; retrain legacy artifacts"
+        )
     fields = {f.name for f in dataclasses.fields(TrainConfig)}
     cfg = TrainConfig(**{k: v for k, v in saved.items() if k in fields})
     return cfg, saved
@@ -535,7 +602,9 @@ def run_backtest(model_dir, **overrides):
     if cfg.agent == "lstm":
         return _backtest_lstm(model_dir, cfg, saved)
     tickers = saved["tickers"]
-    _, _, trade = prepare_data(cfg, tickers=tickers)
+    _, _, trade = prepare_data(
+        cfg, tickers=tickers, eligibility_cutoff=saved["eligibility_cutoff"]
+    )
     kwargs = env_kwargs(cfg, len(tickers))
     threshold = saved.get("resolved_turbulence_threshold") if cfg.use_turbulence else None
     if cfg.task == "trading" and overrides.get("turbulence_threshold") is not None:
@@ -593,23 +662,31 @@ def run_ensemble(cfg):
         MODEL_KWARGS["a2c"], MODEL_KWARGS["ppo"], MODEL_KWARGS["ddpg"], timesteps
     )
     if ensemble.account_value is None:
-        raise ValueError(
-            "The trading period is shorter than rebalance_window + validation_window "
-            "({} days)".format(cfg.rebalance_window + cfg.validation_window)
-        )
+        raise ValueError("The trading period must contain at least two dates")
+    os.makedirs(out_dir, exist_ok=True)
+    run_config = dataclasses.asdict(cfg)
+    run_config.update(
+        run_name=run_name, tickers=tickers,
+        eligibility_cutoff=processed.attrs["eligibility_cutoff"], execution_timing="next_open",
+    )
+    with open(os.path.join(out_dir, "run_config.json"), "w", encoding="utf-8") as f:
+        json.dump(run_config, f, indent=2, default=_to_jsonable)
     stats = evaluate_account(
         ensemble.account_value,
         trade,
         cfg,
         out_dir,
+        actions=ensemble.actions,
         title="Ensemble vs baselines",
-        extra={"ensemble_summary.csv": summary},
+        extra={"ensemble_summary.csv": summary, "executions.csv": ensemble.executions},
     )
     logger.info("Ensemble model choices:\n%s", summary.to_string(index=False))
     return {
         "run_name": run_name,
         "results_dir": out_dir,
         "account_value": ensemble.account_value,
+        "actions": ensemble.actions,
+        "executions": ensemble.executions,
         "summary": summary,
         "stats": stats,
     }
@@ -655,6 +732,9 @@ def _lstm_trade(cfg, model, processed, trade, stats, out_dir, extra=None):
     traded = trade[trade["date"].isin(weights.index)]
     if traded["date"].nunique() < 2:
         raise ValueError("Not enough history before the trading period for the LSTM window")
+    weights = weights.iloc[:-1]
+    executions = weights.rename_axis("signal_date").reset_index()
+    executions.insert(1, "fill_date", sorted(traded["date"].unique())[1:])
     account_value = target_weights_strategy(
         traded, weights, cfg.initial_amount, (cfg.buy_cost_pct + cfg.sell_cost_pct) / 2
     )
@@ -663,6 +743,7 @@ def _lstm_trade(cfg, model, processed, trade, stats, out_dir, extra=None):
     files = {
         "predictions.csv": predictions,
         "forecast_metrics.csv": metrics.rename_axis("metric").reset_index(name="value"),
+        "executions.csv": executions,
     }
     files.update(extra or {})
     stats_table = evaluate_account(
@@ -677,6 +758,7 @@ def _lstm_trade(cfg, model, processed, trade, stats, out_dir, extra=None):
     return {
         "account_value": account_value,
         "actions": weights,
+        "executions": executions,
         "predictions": predictions,
         "forecast_metrics": metrics,
         "stats": stats_table,
@@ -697,23 +779,29 @@ def run_lstm(cfg):
 
     logger.info("==============Loading data and engineering features===========")
     processed, train, trade = prepare_data(cfg)
-    tickers = sorted(train["tic"].unique())
+    tickers = processed.attrs["eligibility_tickers"]
+    cutoff = processed.attrs["eligibility_cutoff"]
+    fitting = train[train["date"] < cutoff]
     stats = lstm.fit_scaler(
-        lstm.raw_features(train, cfg.tech_indicator_list), cfg.tech_indicator_list
+        lstm.raw_features(fitting, cfg.tech_indicator_list), cfg.tech_indicator_list
     )
     ordered, X, y, rows = _lstm_inputs(cfg, train, stats)
-    keep = ~np.isnan(y)
-    X, y, dates = X[keep], y[keep], ordered["date"].to_numpy()[rows[keep]]
-    if len(X) == 0:
-        raise ValueError("The training period is shorter than lstm_window")
-    train_dates = np.sort(np.unique(dates))
-    n_val = int(len(train_dates) * cfg.lstm_validation_fraction)
-    if n_val:
-        # Hold out the most recent days: validating on the past would leak.
-        is_val = dates >= train_dates[-n_val]
-        X_fit, y_fit, X_val, y_val = X[~is_val], y[~is_val], X[is_val], y[is_val]
+    dates = ordered["date"].to_numpy()[rows]
+    outcome_dates = ordered.groupby("tic")["date"].shift(-1).fillna(cutoff).to_numpy()[rows]
+    labelled = np.isfinite(y)
+    # A final fitting-day signal observes a held-out next close: purge it,
+    # rather than letting its validation outcome enter the training labels.
+    is_fit = labelled & (dates < cutoff) & (outcome_dates < cutoff)
+    X_fit, y_fit = X[is_fit], y[is_fit]
+    if len(X_fit) == 0:
+        raise ValueError("The fitting period is shorter than lstm_window plus one outcome day")
+    if processed.attrs["validation_start_date"] is not None:
+        is_val = labelled & (dates >= cutoff)
+        X_val, y_val = X[is_val], y[is_val]
+        if len(X_val) == 0:
+            raise ValueError("The LSTM validation period has no labelled windows")
     else:
-        X_fit, y_fit, X_val, y_val = X, y, None, None
+        X_val, y_val = None, None
     logger.info(
         "%d tickers, %d training and %d validation windows of %d days, %d trading days",
         len(tickers), len(X_fit), 0 if X_val is None else len(X_val), cfg.lstm_window,
@@ -737,7 +825,13 @@ def run_lstm(cfg):
     os.makedirs(model_dir, exist_ok=True)
     torch.save(model.state_dict(), os.path.join(model_dir, "model.pt"))
     run_config = dataclasses.asdict(cfg)
-    run_config.update(run_name=run_name, tickers=tickers, feature_scaler=stats)
+    run_config.update(
+        run_name=run_name,
+        tickers=tickers,
+        eligibility_cutoff=cutoff,
+        execution_timing="next_open",
+        feature_scaler=stats,
+    )
     with open(os.path.join(model_dir, "run_config.json"), "w", encoding="utf-8") as f:
         json.dump(run_config, f, indent=2, default=_to_jsonable)
 
@@ -755,7 +849,9 @@ def _backtest_lstm(model_dir, cfg, saved):
     from rl.forecast import lstm
 
     tickers = saved["tickers"]
-    processed, _, trade = prepare_data(cfg, tickers=tickers)
+    processed, _, trade = prepare_data(
+        cfg, tickers=tickers, eligibility_cutoff=saved["eligibility_cutoff"]
+    )
     stats = saved["feature_scaler"]
     model = lstm.LSTMForecaster(
         len(lstm.feature_columns(cfg.tech_indicator_list)),

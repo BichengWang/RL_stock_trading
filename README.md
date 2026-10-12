@@ -1,14 +1,30 @@
-# Reinforcement Learning on Pricing Market
+# RL-pricing: deep learning for stock trading
 
-## Full document:
+A research toolkit for training and backtesting multi-stock trading strategies.
+Compare deep reinforcement learning agents (A2C, PPO, DDPG, TD3 and SAC), a
+rolling ensemble, and an LSTM forecast-driven strategy against rule-based
+portfolios. The current Python CLI supports Yahoo Finance, local CSV files and
+synthetic data, with saved models, run settings and performance reports.
+Active strategies use close-time signals and next-session open fills; ticker
+eligibility is fitted on past history and frozen for held-out evaluation.
 
-Historical 2021 paper and recorded results (not evidence of current out-of-sample performance):
-https://drive.google.com/file/d/1-ogSAAA5L0sdy1iLt8HQKwV2kcN1UuCc/view?usp=sharing
+**Start with the offline example below** to learn the workflow without fetching
+market data. Synthetic returns demonstrate the pipeline, not investment skill.
+The 2021 paper and saved notebook results are historical research artifacts;
+they are not evidence that the current code beats portfolio managers or will
+deliver similar future returns. This is a backtesting project, not a live
+broker-execution system or investment advice.
 
-Paper Copy: [Applying Deep Learning to Stock Trading](docs/Wang_Zhang_2021_Deep_Learning_Stock_Trading_arxiv.pdf)
+## Navigation
 
-## YouTube detail explanation:
-https://www.youtube.com/watch?v=bE8MFq4sB2k
+- [Setup](#setup) → [offline quick start](#quick-start-offline) → [outputs](#outputs)
+- [Real market data and CSV input](#real-market-data)
+- [Validation](#choosing-the-checkpoint-on-validation-data) · [saved-model backtests](#backtesting-a-saved-model)
+- [Portfolio allocation](#portfolio-allocation) · [LSTM](#lstm-forecasting-strategy) · [ensemble](#ensemble-strategy)
+- [Frozen-data, multi-seed evaluation](#frozen-data-multi-seed-evaluation)
+- [CLI options](#options) · [Python API](#python-api) · [environment mechanics](#the-trading-environment)
+- [Changes since 2021](#changes-from-the-2021-version) · [research and limitations](#research-and-limitations)
+- [Tests](#tests) · [pull requests](#pull-requests) · [license](#license)
 
 ## Repository layout
 
@@ -23,43 +39,68 @@ https://www.youtube.com/watch?v=bE8MFq4sB2k
 | `rl/model/models.py` | DRL agents (A2C, PPO, DDPG, SAC, TD3) and the rolling ensemble |
 | `rl/trade/` | Performance metrics, rule-based baselines and backtest plots |
 | `rl/autotrain/training.py` | End-to-end train / backtest / ensemble pipelines (`TrainConfig`) |
+| `rl/autotrain/experiment.py` | Frozen-CSV, multi-seed PPO/SAC evaluation with validation-only selection |
 | `rl/config/config.py` | Default dates, ticker lists, technical indicators and agent hyperparameters |
 | `tests/` | Offline test suite (synthetic data, no network needed) |
 | `dl/` | Original TensorFlow LSTM code used by the notebooks |
-| `rl_portfolio_trading.ipynb` | Running results (the notebook to start with) |
-| `rl_portfolio_trading_phase2.ipynb` | Phase 2 notebook |
+| [`rl_portfolio_trading.ipynb`](rl_portfolio_trading.ipynb) | Historical 2021 experiment and saved outputs |
+| [`rl_portfolio_trading_phase2.ipynb`](rl_portfolio_trading_phase2.ipynb) | Phase 2 experiment |
 | `notebooks/`, `*.ipynb` | Other experiments |
 | `img/` | Backtest and performance figures |
 | `docs/` | Paper copy |
 
 ## Setup
 
-Python 3.10 or newer.
+Python 3.10 or newer. Run these commands from a terminal:
 
 ```bash
 git clone https://github.com/BichengWang/RL-pricing.git
 cd RL-pricing
-python -m venv .venv && source .venv/bin/activate
-# Optional: CPU-only PyTorch is a much smaller download
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -e .
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
 ```
 
-`requirements.in` lists the supported version ranges (installed by `setup.py`);
-`requirements.txt` pins the versions the test suite was last run with.
+On Windows, activate with `.venv\Scripts\activate` instead. PyTorch is installed
+as a dependency; use its platform-specific installation instructions if you need
+a particular CPU/CUDA build. The virtual environment activation shown above is
+for macOS/Linux.
+
+[`requirements.in`](requirements.in) declares the dependency constraints used by
+[`setup.py`](setup.py); [`requirements.txt`](requirements.txt) provides a pinned
+dependency snapshot. The installed `rl-pricing` command accepts the same options
+as `python main.py`. The legacy notebooks and `dl/` code use a different,
+2021-era stack; the editable install is intended for the current `rl/` pipeline.
 
 ## Usage
 
 ### Quick start (offline)
 
-The synthetic data source generates correlated random-walk prices, so the whole
-pipeline runs without network access:
+After installing dependencies, the synthetic data source generates correlated
+random-walk prices, so this training-and-backtest run needs no network access.
+The small training budget is for learning the workflow, not tuning a strategy:
 
 ```bash
 python main.py --mode train --data-source synthetic --tickers AAA BBB CCC DDD \
     --start-date 2015-01-01 --start-trade-date 2019-01-01 --end-date 2020-01-01 \
-    --agent ppo --timesteps 20000 --seed 0
+    --agent ppo --timesteps 2000 --seed 0 --run-name offline-ppo
 ```
+
+Training uses dates before 2019; the saved policy then trades the held-out
+2019 period using close signals and next-open fills. Inspect
+`results/offline-ppo/perf_stats.csv`, `results/offline-ppo/executions.csv` and
+`results/offline-ppo/backtest.png`, and keep `trained_models/offline-ppo/`
+for a later backtest:
+
+```bash
+python main.py --mode backtest --model-dir trained_models/offline-ppo
+```
+
+Replay uses the saved data source, dates and frozen tickers, and writes to a
+new `results/offline-ppo_backtest_<timestamp>/` directory. Use a different
+`--run-name` for each training experiment to avoid overwriting its artifacts.
+A seed controls randomness, but does not guarantee identical results across
+dependency versions or hardware.
 
 ### Real market data
 
@@ -72,6 +113,15 @@ python main.py --mode train --agent sac --timesteps 80000 --benchmark ^DJI
 python main.py --mode download_data --tickers AAPL MSFT JPM --output datasets/prices.csv
 python main.py --mode train --data-file datasets/prices.csv --agent a2c
 ```
+
+Yahoo downloads (including `--benchmark`) require network access and available
+symbols. For your own CSV, use one row per ticker and date with columns
+`date,tic,open,high,low,close,volume`; dates should be `YYYY-MM-DD`. Supplying
+`--data-file` selects the CSV source automatically, and without `--tickers`
+the CSV pipeline considers all tickers in the file for fitting-history
+eligibility. Ensure the file covers both training and trading dates; data
+outside `[--start-date, --end-date)` are ignored. Open and close prices must
+be finite, positive and on the same adjustment basis.
 
 ### Choosing the checkpoint on validation data
 
@@ -98,8 +148,9 @@ exchange calendar for sessions missing from every ticker.
 
 ### Backtesting a saved model
 
-Each training run saves its model, observation-normalisation statistics and
-settings, so it can be re-run on the same or a different period:
+Single-agent training saves its model, settings and, when enabled,
+observation-normalisation statistics, so it can be re-run on the same or a
+different period. Substitute the directory produced by your own training run:
 
 ```bash
 python main.py --mode backtest --model-dir trained_models/<run-name> \
@@ -231,11 +282,14 @@ than raw exchange fills. Spread, impact and cash/borrowing interest are not
 modeled. Training seeds measure policy variability, not independent market
 samples. Synthetic data verifies the pipeline, not profitability.
 
-The completed reference run is in `results/evaluation_2010_2024_next_open/`:
+The recorded reference run used `results/evaluation_2010_2024_next_open/`:
 36 development runs and six final runs, with 20,000 requested steps per fit.
 Validation selected PPO at `3e-4` and SAC at `1e-3`. Its frozen input SHA-256 is
 `c580fdbaa445c1731ba2cfb07caffa7f73fdaa9cffcf8a812f6551800082737e`.
-`summary.csv` contains the exact returns, Sharpe, drawdowns and seed dispersion.
+That run's `summary.csv` records exact returns, Sharpe, drawdowns and seed
+dispersion. Generated `results/` directories are ignored by Git and are not
+included in a fresh checkout; the path above is an artifact location, not a
+bundled report.
 On the final year, PPO's seed-average return and Sharpe exceeded the baselines,
 but its drawdown was larger; SAC's mean return was lower and varied more by seed.
 These are simulation results for this snapshot, not a general alpha claim.
@@ -290,7 +344,7 @@ Run `python main.py --help` for the full list. The most useful ones:
 | `--data-source` / `--data-file` | `yahoo` | `yahoo`, `csv` or `synthetic` |
 | `--tickers` | Dow 30 | tickers to trade |
 | `--start-date`, `--start-trade-date`, `--end-date` | 2000-01-01, 2019-01-01, 2021-01-01 | training period is `[start, start-trade)`, trading period `[start-trade, end)` |
-| `--seed` | none | makes runs reproducible |
+| `--seed` | none | controls random seeds; exact reproducibility depends on the software and hardware |
 | `--transaction-cost` | training: 0.001; backtest: saved setting | finite fraction in `[0, 1)` paid on every buy and sell; explicit backtest values override both saved fees |
 | `--hmax` | 100 | maximum shares traded per stock per day |
 | `--reward-type` | `asset_change` | or `log_return` |
@@ -309,7 +363,7 @@ A run named `<run>` (default: timestamp and agent) writes:
 | Path | Contents |
 | --- | --- |
 | `trained_models/<run>/model.zip` | the trained stable-baselines3 model (the best validation checkpoint with `--validation-days`) |
-| `trained_models/<run>/vecnormalize.pkl` | observation-normalisation statistics |
+| `trained_models/<run>/vecnormalize.pkl` | observation-normalisation statistics, when normalisation is enabled |
 | `trained_models/<run>/run_config.json` | every setting, frozen tickers, eligibility cutoff, execution timing and turbulence threshold |
 | `results/<run>/run_config.json` | saved-model backtest: effective settings and source checkpoint directory, including any overridden fees |
 | `results/<run>/account_value.csv` | daily account value over the trading period |
@@ -410,6 +464,32 @@ Models without `execution_timing: "next_open"` cannot be replayed; retrain
 them under the causal execution contract. The original 2021 models also used
 stable-baselines3 0.11. Archived notebooks retain their historical outputs.
 
+## Research and limitations
+
+- **Paper:** Bicheng Wang and Xinyi Zhang, *Applying Deep Learning to Stock
+  Trading: LSTM Forecasting and Deep Reinforcement Learning* (June 8, 2021).
+  Read the [local PDF](docs/Wang_Zhang_2021_Deep_Learning_Stock_Trading_arxiv.pdf)
+  or the [original shared document](https://drive.google.com/file/d/1-ogSAAA5L0sdy1iLt8HQKwV2kcN1UuCc/view?usp=sharing).
+- **Presentation:** [YouTube explanation](https://www.youtube.com/watch?v=bE8MFq4sB2k).
+- **Historical results:** the paper evaluates a selected 20-stock universe,
+  training on 2000–2018 and backtesting on 2019–2020. The CLI's default Dow 30
+  universe and modernised implementation are not an exact reproduction of
+  that experiment. Consult the paper for reported results and methodology,
+  rather than treating them as current benchmark guarantees.
+- **Execution assumptions:** active strategies use daily close signals,
+  next-open fills and proportional transaction costs on a consistent adjusted
+  OHLC basis. Adjusted prices model reinvested distributions, not attainable
+  raw exchange fills. Spread, market impact and cash/borrowing interest are
+  not modeled, including financing costs for leveraged LSTM strategies.
+- **Data and evaluation:** freezing eligibility from fitting history prevents
+  held-out prices from changing the universe, but does not make a retrospective
+  ticker list a point-in-time constituent history or eliminate selection bias.
+  A fixed historical test period, validation-based model selection and
+  synthetic tests cannot establish performance in future market regimes.
+  Training seeds measure policy variability, not independent market samples.
+  Retain frozen CSV inputs and manifests: Yahoo availability and historical
+  price revisions can change a later download.
+
 ## Tests
 
 The tests use synthetic data and offline fixtures, so they need no network:
@@ -445,3 +525,5 @@ and verification results. Review the diff and wait for CI to pass before merging
 ## License
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+The trading environment, preprocessing and training code are adapted from the
+MIT-licensed [FinRL](https://github.com/AI4Finance-Foundation/FinRL) library.

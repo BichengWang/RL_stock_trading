@@ -1,0 +1,158 @@
+{
+  "a2c/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "5a0ac41b96a5954023e4607756382ae7514ecc3ee6c579feac2c4a11308e6333"
+  },
+  "a2c/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "565f795564f5735b4eabb7bf9f0fc7ff61a31122204fefea218ff164ebcc4796"
+  },
+  "a2c/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "04a6395079f837e6c75e3cf56ed7c29042404d903f509d3de661025463ed8a4d"
+  },
+  "cash/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "9cc0039141ede551bdb5f05f851f367b5cba53c97d053ae604761af81d63e26f"
+  },
+  "cash/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "da57a07666380f10390e544dd550026c900a941040ed28a8bebc306266ba324e"
+  },
+  "cash/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "ede271be25e6dafa109f76d35836fb20e20dc6ef7ca655b4c0c32b0b6aefc1bd"
+  },
+  "ddpg/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "7f1c3625e84ee8695b80e58df94cca4da7281d166dcf435d92ccd90085dccc0c"
+  },
+  "ddpg/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "583af77f67fe65ba152b27b8c385ed77deefbc4612cf2bad0d8699e29161fdf2"
+  },
+  "ddpg/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "f092c8f517239ecb9f96cb269c0d23bf69f82dac8df55235f099488ea740e33c"
+  },
+  "equal-weight-buy-hold/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "7b91e964beebfa9ff3ef0f805383b8e1a1936bd8abfb473b451c5f512ca0858c"
+  },
+  "equal-weight-buy-hold/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "30a6736595b68c6b7e8322a4040ceeba97f5d4f328f0587e7e5fb7c127402e84"
+  },
+  "equal-weight-buy-hold/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "d16cf84335008c3b381b78cbdc600830ec9b37fd90c0480ea85cb6a7cabff768"
+  },
+  "equal-weight-monthly/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "c3cd819e35867610d0d05f6897ad603323ee1b2ca0212671029a02b6612a43c1"
+  },
+  "equal-weight-monthly/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "c21232a3b00ec26dc232d0ddb697f4b93a2cc152e19fe76ec9d1938c23d03907"
+  },
+  "equal-weight-monthly/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "18ffa3a735e2e76bc89840cccb88cd00d90a702a5783085fb07a997104903049"
+  },
+  "inverse-volatility/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "67591fd03ba1855e36220d5d02d9ce35f88ec8ee6bc001f9d3dbf8e696db0767"
+  },
+  "inverse-volatility/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "62e59103d55c2fab25b25efa90e4a9fffd1a281aaa1e0699a8d3c5a2ebfa97ee"
+  },
+  "inverse-volatility/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "b4b0b78727ee3ed2e4de1ee1b48836caca920caa493f58040369ff28bb1305ff"
+  },
+  "lstm-forecast/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "d8bcb3c3ae5703249e9e752cc4aedd1e0a63b6cf464f8f24967cf59e7cb849cd"
+  },
+  "lstm-forecast/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "790d23303ff7df6893851b94a54dd6fd2ffac419482ad4437be31a67d21b7b91"
+  },
+  "lstm-forecast/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "4147988e83e607987bd19b9cb385ece1108a81f28c68cdefd2ecc2f6ea366e94"
+  },
+  "minimum-variance/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "a65659c320deb338515a200854f7d60fb257da24d5c0b80013c87f6069f4e4a0"
+  },
+  "minimum-variance/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "6979ec9b0e43b20a1df580979262397fc7263923a416e9e0420042728fab4256"
+  },
+  "minimum-variance/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "39e8e23bb9a4d41b546af81b6f9d0b854cea83b3c47e5df50abcb75591d484b7"
+  },
+  "momentum/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "6d6a86831400378fcf00612ab71b77289b55936c1afb9b28020a817590c84020"
+  },
+  "momentum/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "998ffc6bfc15de72477e5dfaf472a868359626760ad2621654485568b7449589"
+  },
+  "momentum/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "31bf8f8ea7d7165c241d5b0b9d84eb7c67700ce4574ef2d04555c60561571a3a"
+  },
+  "ppo/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "ddd48d106c7e826f3e506c2f04e9019faf21262fd2fd59a832b4ef822e1a8328"
+  },
+  "ppo/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "be87a30aab0ef1b0c5b5385872440dcfabb73901614f99f4ddb9b8e1caf45ffa"
+  },
+  "ppo/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "5e4086484b1d8808401c10962b70e3e45de5d127075508dd2c12d04c024eafb5"
+  },
+  "sac/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "5ff663a261ed3da7006cd39fc3e63af6934c07200760b3dae9e9133ab54280f8"
+  },
+  "sac/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "e3901d2641b863f9755838ae470eb957a16d06adf58f56883f4b44951ce8ccbd"
+  },
+  "sac/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "578e4b6e7128d1dc431521f016bd2f4c6e48ffc62cf702cff3cc8f85588b95ca"
+  },
+  "td3/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "88817fa9e106630937436ed23eb8b96b8fd6345cf77ad4b94760201c3f9a91a3"
+  },
+  "td3/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "a2ca1f5ac5c0cb61c526773f767ed07fec7f9c9d90eafd7ce309aff285d47e78"
+  },
+  "td3/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "90d8c98121db050361e03bc8b59ba6a3b75181d2daf8b3ab1d07d6c6a0931f57"
+  },
+  "trend-following/crypto-majors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "f6fd2c7ce319c841fa371808e542c19f1c19e75ee3884a82539cfec2d67c8f6a"
+  },
+  "trend-following/us-multi-asset": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "28ca23f1b9a3ff256c3a7751ea6f03ad68f5c38fa518059f9bca3bd5209f5bd1"
+  },
+  "trend-following/us-sectors": {
+    "published_at": "2026-10-13T20:20:53+00:00",
+    "freeze_sha256": "73fafbfaebaddd142d4d6be7bda29240a44e5edc4563bce1930b5f9e14407ebf"
+  }
+}

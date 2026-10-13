@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this benchmark or its results, please cite it as below."
+title: "RL-pricing: an honest, live-forward-tested benchmark for reinforcement learning portfolio policies"
+type: software
+authors:
+  - family-names: Wang
+    given-names: Bicheng
+  - family-names: Zhang
+    given-names: Xinyi
+repository-code: "https://github.com/BichengWang/RL-pricing"
+license: MIT
+keywords:
+  - reinforcement learning
+  - portfolio management
+  - backtesting
+  - benchmark
+  - quantitative finance
+references:
+  - type: article
+    title: "Deep Reinforcement Learning for Equity Trading: Benchmarking Actor-Critic Methods with Forward Retraining"
+    authors:
+      - family-names: Wang
+        given-names: Bicheng
+      - family-names: Zhang
+        given-names: Xinyi
+    year: 2026
+    identifiers:
+      - type: other
+        value: "arXiv:2609.31870"
+    url: "https://arxiv.org/abs/2609.31870"

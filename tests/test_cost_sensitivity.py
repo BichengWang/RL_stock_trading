@@ -4,6 +4,9 @@ import dataclasses
 import hashlib
 import importlib.metadata
 import json
+import os
+import subprocess
+import sysconfig
 from pathlib import Path
 
 import numpy as np
@@ -74,6 +77,19 @@ def test_backtest_cli_uses_saved_or_explicit_fee_in_accounting(tmp_path, fixed_f
     assert result["stats"].loc["Final value", "Equal-weight buy & hold"] == pytest.approx(
         50 / (1 + effective_fee)
     )
+
+
+def test_installed_command_exits_successfully_after_backtest(tmp_path, fixed_forecaster):
+    command = Path(sysconfig.get_path("scripts")) / (
+        "rl-pricing.exe" if os.name == "nt" else "rl-pricing"
+    )
+    result = subprocess.run(
+        [str(command), "--mode", "backtest", "--model-dir", str(fixed_forecaster),
+         "--results-dir", str(tmp_path / "replay")],
+        cwd=tmp_path, capture_output=True, text=True, check=False, timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert len(list((tmp_path / "replay").glob("*/perf_stats.csv"))) == 1
 
 
 @pytest.fixture

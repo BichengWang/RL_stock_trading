@@ -18,6 +18,50 @@ jobs:
       - name: Lint
         run: ruff check .
 
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install build tools
+        run: python -m pip install build
+      - name: Build source archive and wheel
+        run: python -m build
+      - name: Install wheel
+        run: python -m pip install --no-deps dist/*.whl
+      - name: Verify packaged dependencies and source files
+        run: |
+          python - <<'PY'
+          from email.parser import BytesParser
+          from pathlib import Path
+          import tarfile
+          from zipfile import ZipFile
+
+          from packaging.requirements import Requirement
+
+          declared = {
+              str(Requirement(line.split("#", 1)[0].strip()))
+              for line in Path("requirements.in").read_text().splitlines()
+              if line.split("#", 1)[0].strip()
+          }
+          with ZipFile(next(Path("dist").glob("*.whl"))) as wheel:
+              name = next(name for name in wheel.namelist() if name.endswith(".dist-info/METADATA"))
+              metadata = BytesParser().parsebytes(wheel.read(name))
+          packaged = {
+              str(Requirement(value)) for value in metadata.get_all("Requires-Dist", [])
+          }
+          assert declared <= packaged, f"Missing dependencies: {declared - packaged}"
+          with tarfile.open(next(Path("dist").glob("*.tar.gz"))) as archive:
+              files = {name.split("/", 1)[-1] for name in archive.getnames()}
+          required = {"requirements.in", "pytest.ini", "main.py", "tests/conftest.py"}
+          assert required <= files, f"Missing source files: {required - files}"
+          PY
+      - name: Smoke-test installed CLI outside the checkout
+        working-directory: ${{ runner.temp }}
+        run: rl-pricing --help
+
   test:
     runs-on: ubuntu-latest
     strategy:

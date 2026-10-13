@@ -1,0 +1,415 @@
+"""Aggregate result records into the leaderboard.
+
+All metrics are recomputed from the equity curves stored in the records
+(``leaderboard/<track>/<task>/<submission>.json``, schema 1):
+
+* Per seed, :func:`rl.bench.scoring.metrics` against the record's own 1/N
+  benchmark; the table shows the mean (and, for Sharpe, the standard
+  deviation) across seeds.
+* Significance uses the seed-averaged return series (the equal-weight
+  portfolio of the seeds, which is what a user averaging seeds would get):
+  ``ΔSharpe`` is its annualised Sharpe minus the benchmark's with a one-sided
+  paired stationary-bootstrap p-value, and ``DSR`` is the deflated Sharpe
+  ratio with ``trials`` taken from the submission.
+* The DSR's ``sharpe_variance`` is the cross-sectional variance of the
+  per-period Sharpe ratios of all records in the same table. With fewer than
+  two records, or when that variance is below ``1/n`` (the sampling variance
+  of a per-period Sharpe over ``n`` sessions under i.i.d. returns, which a
+  handful of near-identical strategies can undercut by chance), ``1/n`` is used.
+
+Live results are grouped by freeze date so every table covers the same
+post-freeze window. Tasks are ordered ranked first, then re-evaluations
+(``paper-2021``: a survivorship-biased universe, shown for comparison with a
+published setup, not as a ranking), then the synthetic demo.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import math
+import re
+from pathlib import Path
+
+import numpy as np
+
+from rl.bench import figures, scoring
+from rl.bench.tasks import TASKS
+
+log = logging.getLogger(__name__)
+
+TRACKS = ("historical", "live")
+README_START = "<!-- leaderboard:start -->"
+README_END = "<!-- leaderboard:end -->"
+HEADLINE_ROWS = 3
+REEVALUATIONS = ("paper-2021",)
+#: The submission whose policy is every record's benchmark; its row is shown
+#: as the benchmark instead of a duplicate synthesized row.
+BENCHMARK_SUBMISSION = "equal-weight-buy-hold"
+_METRICS = ("cagr", "max_drawdown", "turnover", "beta", "alpha", "alpha_t", "volatility", "total_return")
+#: Submission kinds the README headline always represents by their best row.
+LEARNED_KINDS = ("rl", "forecast", "llm")
+
+
+def load_records(root="leaderboard") -> list[dict]:
+    """Every schema-1 record under ``root/<track>/<task>/*.json``."""
+    records = []
+    for path in sorted(Path(root).glob("*/*/*.json")):
+        record = json.loads(path.read_text())
+        if record.get("schema") != 1:
+            raise ValueError("{} has unsupported schema {!r}".format(path, record.get("schema")))
+        records.append(record)
+    return records
+
+
+def _returns(equity) -> np.ndarray:
+    equity = np.asarray(equity, dtype=float)
+    return equity[1:] / equity[:-1] - 1
+
+
+def _nan_safe(function, *args, **kwargs):
+    try:
+        return function(*args, **kwargs)
+    except ValueError as error:
+        log.warning("%s unavailable: %s", getattr(function, "__name__", function), error)
+        return None
+
+
+def _per_period_sharpe(returns: np.ndarray) -> float:
+    std = returns.std(ddof=1)
+    return float(returns.mean() / std) if std > 0 else float("nan")
+
+
+def _mean_sd(values) -> tuple[float, float]:
+    array = np.asarray(values, dtype=float)
+    return float(array.mean()), float(array.std(ddof=1)) if array.size > 1 else 0.0
+
+
+def _analyze_record(record: dict) -> dict:
+    ppy = record["periods_per_year"]
+    benchmark = _returns(record["benchmark"]["equity"])
+    per_seed = []
+    seed_returns = []
+    for run in record["runs"]:
+        returns = _returns(run["equity"])
+        seed_returns.append(returns)
+        per_seed.append(scoring.metrics(returns, ppy, benchmark=benchmark, turnover=run["turnover"]))
+    row = {
+        "id": record["submission"],
+        "name": record["name"],
+        "kind": record["kind"],
+        "trials": record["trials"],
+        "seeds": len(record["runs"]),
+        "benchmark": False,
+        "created": record["created"],
+    }
+    keys = per_seed[0].keys()
+    stats = {key: _mean_sd([m[key] for m in per_seed]) for key in keys}
+    row["sharpe"], row["sharpe_sd"] = stats["sharpe"]
+    for key in _METRICS:
+        if key in stats:
+            row[key] = stats[key][0]
+    averaged = np.mean(seed_returns, axis=0)
+    row["_returns"] = averaged
+    row["_benchmark"] = benchmark
+    difference = _nan_safe(scoring.sharpe_difference, averaged, benchmark, ppy)
+    row["delta_sharpe"], row["p_value"] = difference if difference else (float("nan"), float("nan"))
+    return row
+
+
+def _benchmark_row(record: dict) -> dict:
+    ppy = record["periods_per_year"]
+    benchmark = _returns(record["benchmark"]["equity"])
+    values = scoring.metrics(benchmark, ppy)
+    return {
+        "id": None,
+        "name": record["benchmark"]["name"],
+        "kind": "benchmark",
+        "trials": 1,
+        "seeds": 1,
+        "benchmark": True,
+        "sharpe": values["sharpe"],
+        "sharpe_sd": 0.0,
+        "delta_sharpe": float("nan"),
+        "p_value": float("nan"),
+        "dsr": float("nan"),
+        **{key: values[key] for key in ("cagr", "max_drawdown", "volatility", "total_return")},
+    }
+
+
+def _role(task_id: str) -> str:
+    task = TASKS.get(task_id)
+    if task_id in REEVALUATIONS:
+        return "reevaluation"
+    return "demo" if task is not None and task.source == "synthetic" else "ranked"
+
+
+_ROLE_ORDER = {"ranked": 0, "reevaluation": 1, "demo": 2}
+
+
+def _sections(records: list[dict]) -> list[dict]:
+    groups: dict[tuple, list[dict]] = {}
+    for record in records:
+        key = (
+            TRACKS.index(record["track"]) if record["track"] in TRACKS else len(TRACKS),
+            _ROLE_ORDER[_role(record["task"])],
+            record["task"],
+            record["dates"][0] if record["track"] == "live" else "",
+        )
+        groups.setdefault(key, []).append(record)
+
+    sections = []
+    for key in sorted(groups):
+        members = groups[key]
+        latest = max(members, key=lambda r: r["created"])
+        rows = [_analyze_record(record) for record in members]
+        n = min(len(row["_returns"]) for row in rows)
+        sharpes = np.array([_per_period_sharpe(row["_returns"]) for row in rows])
+        sharpes = sharpes[np.isfinite(sharpes)]
+        variance = float(sharpes.var(ddof=1)) if sharpes.size > 1 else 0.0
+        variance = max(variance, 1.0 / n)
+        for row in rows:
+            dsr = _nan_safe(scoring.deflated_sharpe, row["_returns"], row["trials"], variance)
+            row["dsr"] = float(dsr) if dsr is not None else float("nan")
+            del row["_returns"], row["_benchmark"]
+        listed = [row for row in rows if row["id"] == BENCHMARK_SUBMISSION]
+        if listed:
+            listed[0]["benchmark"] = True
+        else:
+            rows.append(_benchmark_row(latest))
+        rows.sort(key=lambda r: (not math.isfinite(r["sharpe"]), -r["sharpe"] if math.isfinite(r["sharpe"]) else 0.0))
+        for rank, row in enumerate(rows, 1):
+            row["rank"] = rank
+        task = TASKS.get(latest["task"])
+        sections.append(
+            {
+                "track": latest["track"],
+                "task": latest["task"],
+                "title": task.title if task else latest["task"],
+                "role": _role(latest["task"]),
+                "first": latest["dates"][1],
+                "last": latest["dates"][-1],
+                "sessions": len(latest["dates"]) - 1,
+                "transaction_cost": latest["transaction_cost"],
+                "periods_per_year": latest["periods_per_year"],
+                "universe": latest["data"].get("tickers") or (list(task.tickers) if task else []),
+                "frozen_through": latest["fit"]["history_end"] if latest["track"] == "live" else None,
+                "frozen_at": latest["fit"].get("frozen_at"),
+                "sharpe_variance": variance,
+                "rows": rows,
+            }
+        )
+    return sections
+
+
+def build(root="leaderboard") -> dict:
+    """Analyse every record under ``root`` into the summary document."""
+    return {"schema": 1, "sections": _sections(load_records(root))}
+
+
+# --- rendering -------------------------------------------------------------
+
+
+def _fmt(value, template: str, missing: str = "–") -> str:
+    return missing if value is None or not math.isfinite(value) else template.format(value)
+
+
+def _pct(value) -> str:
+    return _fmt(None if value is None else value * 100, "{:.1f}%")
+
+
+def _row_cells(row: dict, link_prefix: str | None, ranked: bool = True) -> list[str]:
+    name = row["name"]
+    if row["benchmark"]:
+        name = "**{}** ◆".format(name)
+    elif row["id"] and link_prefix is not None:
+        name = "[{}]({}/{}/)".format(name, link_prefix, row["id"])
+    sharpe = _fmt(row["sharpe"], "{:.2f}")
+    if row["sharpe"] is not None and math.isfinite(row["sharpe"]) and row.get("seeds", 1) > 1:
+        sharpe += " ± {:.2f}".format(row["sharpe_sd"])
+    alpha = "–"
+    if "alpha" in row and math.isfinite(row["alpha"]):
+        alpha = _pct(row["alpha"]) + _fmt(row.get("alpha_t"), " (t={:.1f})", "")
+    delta = "–"
+    if not row["benchmark"] and "delta_sharpe" in row and math.isfinite(row["delta_sharpe"]):
+        p_value = row["p_value"]
+        shown_p = "p<0.001" if p_value is not None and p_value < 0.001 else "p=" + _fmt(p_value, "{:.3f}")
+        delta = "{:+.2f} ({})".format(row["delta_sharpe"], shown_p)
+    return [
+        str(row["rank"]) if ranked else "–",
+        name,
+        row["kind"],
+        sharpe,
+        _pct(row.get("cagr")),
+        _pct(row.get("max_drawdown")),
+        _fmt(row.get("turnover"), "{:.1f}×"),
+        _fmt(row.get("beta"), "{:.2f}"),
+        alpha,
+        delta,
+        _fmt(row.get("dsr"), "{:.2f}"),
+        "–" if row["benchmark"] else str(row["seeds"]),
+    ]
+
+
+_COLUMNS = (
+    "#", "Strategy", "Kind", "Sharpe", "CAGR", "Max DD", "Turnover/yr", "Beta", "Alpha (t)",
+    "ΔSharpe vs 1/N", "DSR", "Seeds",
+)
+
+
+def _table(headers, rows) -> list[str]:
+    return [
+        "| " + " | ".join(headers) + " |",
+        "|" + "|".join(" --- " for _ in headers) + "|",
+        *("| " + " | ".join(cells) + " |" for cells in rows),
+    ]
+
+
+def _heading(section: dict) -> str:
+    title = section["title"]
+    if section["role"] == "reevaluation":
+        title = "Re-evaluation: " + title
+    elif section["role"] == "demo":
+        title = "Demo: " + title
+    if section["track"] == "live":
+        title = "{} (frozen {})".format(title, section["frozen_through"])
+    return title
+
+
+def render_markdown(summary: dict, link_prefix: str | None = "../submissions") -> str:
+    """The full ``LEADERBOARD.md``."""
+    lines = [
+        "# Leaderboard",
+        "",
+        "Can deep RL beat 1/N? Every row is traded by the same causal execution model "
+        "(signal at close *t*, fill at open *t+1*, proportional fees, long-only, no leverage). "
+        "Negative results stay in.",
+        "",
+    ]
+    sections = summary["sections"]
+    if not sections:
+        lines += ["No results yet.", ""]
+    for track in TRACKS:
+        chosen = [s for s in sections if s["track"] == track]
+        if not chosen:
+            continue
+        lines += [
+            "## Historical track" if track == "historical" else "## Live track",
+            "",
+            (
+                "Fixed public split: fit before the test window, then trade it."
+                if track == "historical"
+                else "Policies frozen at the date shown and scored on the sessions after it; "
+                "they cannot have been tuned on the results."
+            ),
+            "",
+        ]
+        for section in chosen:
+            lines += [
+                "### {} — `{}`".format(_heading(section), section["task"]),
+                "",
+                "{} to {} ({} sessions) · fee {:.3g}% per side · {}".format(
+                    section["first"],
+                    section["last"],
+                    section["sessions"],
+                    section["transaction_cost"] * 100,
+                    ", ".join(section["universe"]),
+                ),
+                "",
+                *(
+                    [
+                        "*Survivorship-biased universe (chosen in hindsight): this re-tests a published "
+                        "setup with this benchmark's execution model and is not a ranking.*",
+                        "",
+                    ]
+                    if section["role"] == "reevaluation"
+                    else []
+                ),
+                *_table(
+                    _COLUMNS,
+                    [_row_cells(row, link_prefix, section["role"] != "reevaluation") for row in section["rows"]],
+                ),
+                "",
+            ]
+    lines += [
+        "◆ marks the 1/N buy-and-hold benchmark (equal weights at the start of the period, never "
+        "rebalanced); every ΔSharpe is measured against it over the same sessions.",
+        "",
+        "**Metrics.** Computed from daily simple returns with a zero risk-free rate. "
+        "*Sharpe*: mean/std × √(periods per year); with several seeds, mean ± standard deviation of "
+        "per-seed Sharpe ratios. *CAGR*, *Max DD* (peak-to-trough, including the starting value) and "
+        "*Beta*/*Alpha* (OLS of daily returns on the benchmark's; alpha annualised, *t* is "
+        "Newey-West) are means across seeds. *Turnover/yr*: annualised one-way traded fraction of "
+        "equity. *ΔSharpe*: annualised Sharpe of the seed-averaged returns minus the benchmark's, "
+        "with a one-sided paired stationary-bootstrap p-value (H1: better than 1/N). *DSR*: "
+        "deflated Sharpe ratio of the seed-averaged returns, i.e. the probability the true Sharpe is "
+        "positive after accounting for the submission's `trials` and for the dispersion of Sharpe "
+        "ratios across this table (Bailey & López de Prado, 2014).",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def render_headline(summary: dict, link: str = "leaderboard/LEADERBOARD.md") -> str:
+    """Compact table for the README: per task, the top rows, the benchmark
+    and the best learned (RL or forecasting) policy."""
+    rows = []
+    for section in summary["sections"]:
+        if section["role"] == "demo":
+            continue
+        shown = section["rows"][:HEADLINE_ROWS]
+        learned = [r for r in section["rows"] if r["kind"] in LEARNED_KINDS]
+        extra = [r for r in section["rows"] if r["benchmark"]] + learned[:1]
+        shown += [r for r in section["rows"] if r in extra and r not in shown]
+        for row in shown:
+            cells = _row_cells(row, None, section["role"] != "reevaluation")
+            rows.append(
+                [
+                    section["track"],
+                    "`{}`{}".format(section["task"], " (re-evaluation)" if section["role"] == "reevaluation" else ""),
+                    cells[0], cells[1], cells[3], cells[4], cells[5], cells[9], cells[10],
+                ]
+            )
+    if not rows:
+        return "No results yet."
+    headers = ("Track", "Task", "#", "Strategy", "Sharpe", "CAGR", "Max DD", "ΔSharpe vs 1/N", "DSR")
+    return "\n".join([*_table(headers, rows), "", "Full tables: [{}]({}).".format(link, link)])
+
+
+def update_readme(path, text: str) -> bool:
+    """Replace the text between the README markers; ``False`` if they are absent."""
+    path = Path(path)
+    if not path.exists():
+        return False
+    content = path.read_text()
+    pattern = re.compile(re.escape(README_START) + r".*?" + re.escape(README_END), re.DOTALL)
+    if not pattern.search(content):
+        return False
+    block = "{}\n{}\n{}".format(README_START, text.strip("\n"), README_END)
+    updated = pattern.sub(lambda _: block, content, count=1)
+    if updated != content:
+        path.write_text(updated)
+    return True
+
+
+def _clean(value):
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _clean(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_clean(item) for item in value]
+    return value
+
+
+def write_leaderboard(root="leaderboard", *, readme="README.md", link_prefix: str | None = "../submissions") -> dict:
+    """Write ``LEADERBOARD.md`` and ``summary.json`` under ``root``; refresh the README block."""
+    root = Path(root)
+    summary = build(root)
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "LEADERBOARD.md").write_text(render_markdown(summary, link_prefix))
+    (root / "summary.json").write_text(json.dumps(_clean(summary), indent=1) + "\n")
+    figures.render_sharpe_figure(load_records(root), root / "sharpe.png", figures.load_reported(root))
+    if readme is not None and not update_readme(readme, render_headline(summary)):
+        log.info("No leaderboard markers in %s; README left unchanged", readme)
+    return summary

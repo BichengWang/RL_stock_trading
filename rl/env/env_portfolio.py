@@ -9,7 +9,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 
 from rl.config import config
 from rl.env.env_stocktrading import panel_arrays
-from rl.trade.baselines import _rebalance_positions
+from rl.trade.execution import rebalance_positions
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,7 @@ class StockPortfolioEnv(gym.Env):
         fill_prices = self.open_prices[fill_day]
         # Existing shares earn the overnight gap before rebalancing. Fees are
         # paid from equity and targets are fractions of the post-fee account.
-        positions, self.cash, cost = _rebalance_positions(
+        positions, self.cash, cost = rebalance_positions(
             self.cash,
             self.holdings * fill_prices,
             weights,

@@ -1,0 +1,5 @@
+{
+  "algo": "ddpg",
+  "best_step": 20000,
+  "best_sharpe": 0.06331634272817681
+}

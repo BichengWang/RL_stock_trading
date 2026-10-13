@@ -1,0 +1,16 @@
+{
+  "name": "LSTM forecast",
+  "kind": "forecast",
+  "policy": "rl.bench.policies.forecast:LSTMForecastPolicy",
+  "params": {
+    "window": 30,
+    "hidden_size": 32,
+    "epochs": 20,
+    "top": null,
+    "transaction_cost": 0.001
+  },
+  "trials": 1,
+  "authors": ["RL-pricing"],
+  "url": "",
+  "description": "Two-layer LSTM forecasting each asset's next open-to-open return from 30 sessions of scale-free features (log return, high/low range, close/open). Holds the assets forecast to rise, equally weighted, else cash. Epoch chosen on the validation split."
+}

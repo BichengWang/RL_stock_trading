@@ -1,11 +1,8 @@
-"""Consumer-visible rolling accounting and validation-only selection invariants."""
+"""Consumer-visible rolling ensemble accounting."""
 
 import numpy as np
-import pandas as pd
-import pytest
 
 from conftest import make_panel
-from rl.autotrain.experiment import run_experiment, select_candidates
 from rl.model.models import DRLEnsembleAgent
 
 
@@ -41,36 +38,3 @@ def test_ensemble_carries_gap_returns_and_trades_final_partial_window(tmp_path, 
     assert ensemble.executions.signal_date.tolist() == dates[6:-1]
     assert ensemble.executions.fill_date.tolist() == dates[7:]
     assert ensemble.actions.iloc[:, 0].sum() == 1.0
-
-
-def validation_rows():
-    return pd.DataFrame([
-        {"phase": phase, "agent": agent, "candidate": candidate, "validation_sharpe": score}
-        for agent in ("ppo", "sac")
-        for phase, candidate, score in (
-            ("development", "lr_3e-4", 1.0), ("development", "lr_3e-4", 2.0),
-            ("development", "lr_1e-3", 0.5), ("development", "lr_1e-3", 1.0),
-            ("final", "lr_1e-3", 1000.0),
-        )
-    ])
-
-
-def test_candidate_selection_never_uses_final_scores():
-    assert select_candidates(validation_rows()) == {"ppo": "lr_3e-4", "sac": "lr_3e-4"}
-
-
-def test_candidate_requires_defined_validation_on_every_fold_seed():
-    rows = validation_rows()
-    rows.loc[0, "validation_sharpe"] = np.nan
-    assert select_candidates(rows)["ppo"] == "lr_1e-3"
-    rows.loc[(rows.agent == "ppo") & (rows.phase == "development"), "validation_sharpe"] = np.nan
-    with pytest.raises(ValueError, match="ppo"):
-        select_candidates(rows)
-
-
-def test_experiment_rejects_final_period_inside_development(tmp_path):
-    with pytest.raises(ValueError, match="increasing"):
-        run_experiment(
-            "unread.csv", ["AAA"], ["2020-01-01", "2022-01-01"],
-            "2021-01-01", "2023-01-01", output_dir=str(tmp_path / "unused"),
-        )

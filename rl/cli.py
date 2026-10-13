@@ -3,6 +3,7 @@
 import datetime
 import logging
 import os
+import sys
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 
 from rl.config import config
@@ -24,6 +25,7 @@ def build_parser():
     parser = ArgumentParser(
         description="Train and backtest deep reinforcement learning stock-trading agents.",
         formatter_class=ArgumentDefaultsHelpFormatter,
+        epilog="Benchmark and leaderboard: rl-pricing bench --help",
     )
     parser.add_argument(
         "--mode",
@@ -199,6 +201,14 @@ def _explicit(options, names):
 
 def main(argv=None):
     """Run the CLI and return the pipeline result for Python callers."""
+    args = sys.argv[1:] if argv is None else list(argv)
+    if args[:1] == ["bench"]:
+        from rl.bench.cli import main as bench_main
+
+        code = bench_main(args[1:])
+        if code:
+            raise SystemExit(code)
+        return code
     parser = build_parser()
     options = parser.parse_args(argv)
     logging.basicConfig(

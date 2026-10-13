@@ -1,0 +1,18 @@
+{
+  "task": "crypto-majors",
+  "submission": "inverse-volatility",
+  "policy": "rl.bench.policies.baselines:InverseVolatility",
+  "params": {
+    "lookback": 63,
+    "frequency": "monthly"
+  },
+  "fitted_through": "2026-10-12",
+  "validation_start": "2025-10-12",
+  "frozen_at": "2026-10-13T08:02:40+00:00",
+  "seeds": [
+    0
+  ],
+  "data_sha256": "60462e4e58e84c63ddee8fafc6ff2c95cc5e9d3c4b40326061e8b7be4831d67c",
+  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "artifacts": {}
+}

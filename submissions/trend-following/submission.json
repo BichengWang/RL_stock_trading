@@ -1,0 +1,15 @@
+{
+  "name": "Trend following (200d SMA)",
+  "kind": "baseline",
+  "policy": "rl.bench.policies.baselines:TrendFollowing",
+  "params": {
+    "lookback": 200,
+    "frequency": "monthly"
+  },
+  "trials": 1,
+  "authors": [
+    "RL-pricing maintainers"
+  ],
+  "url": "",
+  "description": "Holds each asset trading above its 200-day moving average, otherwise cash, rebalanced monthly (Moskowitz, Ooi & Pedersen 2012)."
+}

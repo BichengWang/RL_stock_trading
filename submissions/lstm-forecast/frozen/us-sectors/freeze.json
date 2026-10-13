@@ -1,0 +1,30 @@
+{
+  "task": "us-sectors",
+  "submission": "lstm-forecast",
+  "policy": "rl.bench.policies.forecast:LSTMForecastPolicy",
+  "params": {
+    "window": 30,
+    "hidden_size": 32,
+    "epochs": 20,
+    "top": null,
+    "transaction_cost": 0.001
+  },
+  "fitted_through": "2026-10-12",
+  "validation_start": "2023-10-12",
+  "frozen_at": "2026-10-13T08:05:56+00:00",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "data_sha256": "05d8520d78df3f3be6257ef23e6c9c03a54018d4abc1dfaedfb24c650ef8e8c0",
+  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "artifacts": {
+    "seed0/model.pt": "21785262fda4dd8e7fbb9bc279043b7a41bcc3b4c8aa0c5fe279a82a8f8d187b",
+    "seed0/state.json": "3cd2b0fda6f123f73c9289f36d203d8b5e7e500d400846654795e381413cfcc4",
+    "seed1/model.pt": "5a6a7731d1a7381583048722359de4bda8ee504e02109c541feb7a6f64592dab",
+    "seed1/state.json": "3cd2b0fda6f123f73c9289f36d203d8b5e7e500d400846654795e381413cfcc4",
+    "seed2/model.pt": "704d8a2613b8927507ba1c629d5f14b6004d2aad878074ef29e5ddf2a2cdd093",
+    "seed2/state.json": "3cd2b0fda6f123f73c9289f36d203d8b5e7e500d400846654795e381413cfcc4"
+  }
+}

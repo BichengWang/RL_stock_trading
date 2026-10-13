@@ -1,0 +1,32 @@
+{
+  "task": "us-sectors",
+  "submission": "ddpg",
+  "policy": "rl.bench.policies.sb3:SB3Policy",
+  "params": {
+    "algo": "ddpg",
+    "timesteps": 100000,
+    "episode_length": 252,
+    "net_arch": [
+      64,
+      64
+    ]
+  },
+  "fitted_through": "2026-10-12",
+  "validation_start": "2023-10-12",
+  "frozen_at": "2026-10-13T08:02:42+00:00",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "data_sha256": "05d8520d78df3f3be6257ef23e6c9c03a54018d4abc1dfaedfb24c650ef8e8c0",
+  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "artifacts": {
+    "seed0/meta.json": "0460501a263f31bb76384f72f5c3ff08a9c2bd3ca80d5f464fdb35120b13c115",
+    "seed0/model.zip": "894db936775ee9585ff9e3d07274f7d012a60d58f523dc68cfbe3804fb90d1d9",
+    "seed1/meta.json": "a4aa00229710d6b782984e553d38cb771e4ccc8229aed236e7480c38af8e7448",
+    "seed1/model.zip": "779c542e228b252c1b9f6b4f232bfc3877ebe3d3f9e68a8b5fc3aeca7783066c",
+    "seed2/meta.json": "7a00f378ae393ebbdf6f196aff141d894f0e17f80f1d61a7afd0ea6e187aab61",
+    "seed2/model.zip": "8f5dd47b9f087cdd2eeb49c711cf60b22f6e22ae8ca9c1436bba907d8a44ed42"
+  }
+}

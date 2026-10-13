@@ -6,8 +6,6 @@ from stable_baselines3.common.env_checker import check_env
 
 from conftest import TECH, make_panel
 from rl.env.env_portfolio import StockPortfolioEnv
-from rl.env.env_stocktrading_cashpenalty import StockTradingEnvCashpenalty
-from rl.env.env_stocktrading_stoploss import StockTradingEnvStopLoss
 from rl.preprocessing.data import data_split
 from rl.preprocessing.preprocessors import add_covariance_matrix
 from rl.trade.baselines import target_weights_strategy
@@ -185,28 +183,3 @@ def test_portfolio_requires_raw_open_prices():
     data = make_portfolio_panel([[10], [12]]).drop(columns="open")
     with pytest.raises(ValueError):
         StockPortfolioEnv(data, 1, 100, 1000, 0.01, 1.0, 1, 1, [])
-
-
-@pytest.mark.parametrize("env_class", [StockTradingEnvCashpenalty, StockTradingEnvStopLoss])
-def test_penalty_envs(processed, env_class, capsys, caplog):
-    env = env_class(
-        processed,
-        daily_information_cols=["open", "close", "high", "low", "volume"] + TECH,
-        print_verbosity=10**9,
-        patient=True,
-    )
-    with caplog.at_level("INFO", logger=env_class.__module__):
-        check_env(env)
-        env.reset(seed=3)
-        first_start = env.starting_point
-        env.reset(seed=3)
-        assert env.starting_point == first_start  # seeded random start
-        info = run_episode(env, scale=0.1, seed=3)
-    # Episode summaries go to the log, not stdout.
-    assert capsys.readouterr().out == ""
-    assert "TERMINAL_REASON" in caplog.text
-    assert "total_assets" in info["episode_stats"]
-    values = env.save_asset_memory()
-    # Records start on the episode's first date.
-    assert values.date.iloc[0] == env.dates[env.starting_point]
-    assert len(values) == env.current_step

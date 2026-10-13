@@ -1,0 +1,12 @@
+{
+  "name": "1/N buy and hold",
+  "kind": "baseline",
+  "policy": "rl.bench.policies.baselines:EqualWeightBuyHold",
+  "params": {},
+  "trials": 1,
+  "authors": [
+    "RL-pricing maintainers"
+  ],
+  "url": "",
+  "description": "Splits capital equally across the listed assets once and never trades; the benchmark on every record (DeMiguel, Garlappi & Uppal 2009, 'Optimal Versus Naive Diversification')."
+}

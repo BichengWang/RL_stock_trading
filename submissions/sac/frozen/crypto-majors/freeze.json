@@ -1,0 +1,32 @@
+{
+  "task": "crypto-majors",
+  "submission": "sac",
+  "policy": "rl.bench.policies.sb3:SB3Policy",
+  "params": {
+    "algo": "sac",
+    "timesteps": 100000,
+    "episode_length": 252,
+    "net_arch": [
+      64,
+      64
+    ]
+  },
+  "fitted_through": "2026-10-12",
+  "validation_start": "2025-10-12",
+  "frozen_at": "2026-10-13T08:17:39+00:00",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "data_sha256": "60462e4e58e84c63ddee8fafc6ff2c95cc5e9d3c4b40326061e8b7be4831d67c",
+  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "artifacts": {
+    "seed0/meta.json": "65d0df0f9cb7c369660aec90e1a5f3c2057ab17c76f8006428969a143f382b4a",
+    "seed0/model.zip": "b4e461e15ebe5aae50606ba997d3add0aedabf8950223012ffefb8656478e61b",
+    "seed1/meta.json": "3a43f9281b70145053283e69b5a213c4cdd1e8f5a0bdd588c3683a5562f6d1c5",
+    "seed1/model.zip": "64865aba52eb0603f691da4fe4b7b1aadd458b23397cfa6cfb99d9b1d2d4588b",
+    "seed2/meta.json": "4f68337724916d9460b4ffb2b126d766a836c642bf88d617f8077ad404da346e",
+    "seed2/model.zip": "aeb7e141b4c9f84ac2ee140fe79c7e42f5c825019b4e5c7c7c0e964383920bce"
+  }
+}

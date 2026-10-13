@@ -1,0 +1,32 @@
+{
+  "task": "crypto-majors",
+  "submission": "td3",
+  "policy": "rl.bench.policies.sb3:SB3Policy",
+  "params": {
+    "algo": "td3",
+    "timesteps": 100000,
+    "episode_length": 252,
+    "net_arch": [
+      64,
+      64
+    ]
+  },
+  "fitted_through": "2026-10-12",
+  "validation_start": "2025-10-12",
+  "frozen_at": "2026-10-13T08:24:23+00:00",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "data_sha256": "60462e4e58e84c63ddee8fafc6ff2c95cc5e9d3c4b40326061e8b7be4831d67c",
+  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "artifacts": {
+    "seed0/meta.json": "fb3e8eb8dee67e952e034c4e5f1f3e42f6c6c26c301b57e9f8c2b8e4609dbd33",
+    "seed0/model.zip": "264082098319aa6c1f9a675b82b273b83e2ea4a2c504f63df3afbe0db74fda16",
+    "seed1/meta.json": "5135bd006b58888331758e0ac5f84e722b4aa0f1b708ad829594ac02875dd963",
+    "seed1/model.zip": "e215ace462d911a513f5f8d40eba1978aad13cb5bf01ca234be5d34f3d5bb2e3",
+    "seed2/meta.json": "6a69866843f89e30f2872b2e4603c0dd3d78409445ddc2464d4458a0733a7be7",
+    "seed2/model.zip": "4b90c226ba3f6c50e0fd82cb269ba6718061ea1623c27da4d3f5a63d88c5715f"
+  }
+}

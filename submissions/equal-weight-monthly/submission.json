@@ -1,0 +1,14 @@
+{
+  "name": "1/N monthly rebalance",
+  "kind": "baseline",
+  "policy": "rl.bench.policies.baselines:EqualWeightRebalance",
+  "params": {
+    "frequency": "monthly"
+  },
+  "trials": 1,
+  "authors": [
+    "RL-pricing maintainers"
+  ],
+  "url": "",
+  "description": "Rebalances to equal weights on the first session of each month (DeMiguel, Garlappi & Uppal 2009)."
+}

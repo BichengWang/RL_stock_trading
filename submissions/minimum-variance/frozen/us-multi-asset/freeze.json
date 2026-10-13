@@ -1,0 +1,19 @@
+{
+  "task": "us-multi-asset",
+  "submission": "minimum-variance",
+  "policy": "rl.bench.policies.baselines:MinimumVariance",
+  "params": {
+    "lookback": 252,
+    "frequency": "monthly",
+    "shrinkage": 0.1
+  },
+  "fitted_through": "2026-10-12",
+  "validation_start": "2023-10-12",
+  "frozen_at": "2026-10-13T08:05:38+00:00",
+  "seeds": [
+    0
+  ],
+  "data_sha256": "a2b9c403fb6ddc9e8a958a5c08993b0ebada09d0d2853f012192e595379c0438",
+  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "artifacts": {}
+}

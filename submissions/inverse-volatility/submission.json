@@ -1,0 +1,15 @@
+{
+  "name": "Inverse volatility",
+  "kind": "baseline",
+  "policy": "rl.bench.policies.baselines:InverseVolatility",
+  "params": {
+    "lookback": 63,
+    "frequency": "monthly"
+  },
+  "trials": 1,
+  "authors": [
+    "RL-pricing maintainers"
+  ],
+  "url": "",
+  "description": "Weights assets by the inverse of their trailing 63-day volatility, rebalanced monthly (risk-parity heuristic, Asness, Frazzini & Pedersen 2012)."
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Momentum (top 3)",
+  "kind": "baseline",
+  "policy": "rl.bench.policies.baselines:Momentum",
+  "params": {
+    "lookback": 252,
+    "skip": 21,
+    "top": 3,
+    "frequency": "monthly"
+  },
+  "trials": 1,
+  "authors": [
+    "RL-pricing maintainers"
+  ],
+  "url": "",
+  "description": "Holds the three assets with the best positive 12-1 month return, rebalanced monthly (Jegadeesh & Titman 1993)."
+}

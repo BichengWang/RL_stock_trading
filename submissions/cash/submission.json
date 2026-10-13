@@ -1,0 +1,12 @@
+{
+  "name": "Cash",
+  "kind": "baseline",
+  "policy": "rl.bench.policies.baselines:Cash",
+  "params": {},
+  "trials": 1,
+  "authors": [
+    "RL-pricing maintainers"
+  ],
+  "url": "",
+  "description": "Always holds cash: the zero-risk floor."
+}

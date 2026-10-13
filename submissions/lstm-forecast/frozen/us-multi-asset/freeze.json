@@ -1,0 +1,30 @@
+{
+  "task": "us-multi-asset",
+  "submission": "lstm-forecast",
+  "policy": "rl.bench.policies.forecast:LSTMForecastPolicy",
+  "params": {
+    "window": 30,
+    "hidden_size": 32,
+    "epochs": 20,
+    "top": null,
+    "transaction_cost": 0.001
+  },
+  "fitted_through": "2026-10-12",
+  "validation_start": "2023-10-12",
+  "frozen_at": "2026-10-13T08:05:38+00:00",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "data_sha256": "a2b9c403fb6ddc9e8a958a5c08993b0ebada09d0d2853f012192e595379c0438",
+  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "artifacts": {
+    "seed0/model.pt": "07d47169d08b2348ce9a31d0e8c9247983375dd777e5739a61e1f33a39a17c89",
+    "seed0/state.json": "97dcecf5f9d9ca08a3fca3a9252a60c9b298fa3f3a07865f9e15abe601e8d0b0",
+    "seed1/model.pt": "46ca1114cb1d9c8f9c5f6705fc695585cbb2ce1ed13f0bf3b210e03604bc288a",
+    "seed1/state.json": "97dcecf5f9d9ca08a3fca3a9252a60c9b298fa3f3a07865f9e15abe601e8d0b0",
+    "seed2/model.pt": "b95741c6ff80f15a358066d52541006eea7f680a2aa64ccca2df5a89465c3015",
+    "seed2/state.json": "97dcecf5f9d9ca08a3fca3a9252a60c9b298fa3f3a07865f9e15abe601e8d0b0"
+  }
+}

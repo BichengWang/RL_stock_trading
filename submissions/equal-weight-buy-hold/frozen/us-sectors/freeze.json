@@ -1,0 +1,15 @@
+{
+  "task": "us-sectors",
+  "submission": "equal-weight-buy-hold",
+  "policy": "rl.bench.policies.baselines:EqualWeightBuyHold",
+  "params": {},
+  "fitted_through": "2026-10-12",
+  "validation_start": "2023-10-12",
+  "frozen_at": "2026-10-13T08:02:42+00:00",
+  "seeds": [
+    0
+  ],
+  "data_sha256": "05d8520d78df3f3be6257ef23e6c9c03a54018d4abc1dfaedfb24c650ef8e8c0",
+  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "artifacts": {}
+}

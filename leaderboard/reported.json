@@ -1,0 +1,14 @@
+{
+  "paper-2021": {
+    "source": "Wang & Zhang, arXiv:2609.31870, Table 4: one training run per agent, trained once (no forward retraining), 2019-2020 backtest, share-trading environment",
+    "url": "https://arxiv.org/abs/2609.31870",
+    "sharpe": {
+      "a2c": 0.82,
+      "ppo": 1.09,
+      "ddpg": 1.38,
+      "td3": 1.37,
+      "sac": 1.33,
+      "lstm-forecast": 1.19
+    }
+  }
+}

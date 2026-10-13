@@ -1,0 +1,32 @@
+{
+  "task": "us-multi-asset",
+  "submission": "ppo",
+  "policy": "rl.bench.policies.sb3:SB3Policy",
+  "params": {
+    "algo": "ppo",
+    "timesteps": 200000,
+    "episode_length": 252,
+    "net_arch": [
+      64,
+      64
+    ]
+  },
+  "fitted_through": "2026-10-12",
+  "validation_start": "2023-10-12",
+  "frozen_at": "2026-10-13T08:08:25+00:00",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "data_sha256": "a2b9c403fb6ddc9e8a958a5c08993b0ebada09d0d2853f012192e595379c0438",
+  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "artifacts": {
+    "seed0/meta.json": "476528f19bb3a7a27d57f9997058e3e3d51352727d119bfd6e5eba00a378578b",
+    "seed0/model.zip": "37e2b83ab80637a5f49f20b5de269c5d89a4a1c1110df28711f315893f0ff0dd",
+    "seed1/meta.json": "4a96de807641aa4fc7f3c8d567adf8ac8d852abfeba067a0880337e013c28326",
+    "seed1/model.zip": "e0d124987f35e345017e1da96291d7492848f58ceaf3a5e454a5cdc8ad969b45",
+    "seed2/meta.json": "6c8d7020f81e3c7d78729cff29cbbd7a48708f916dd19d0f817a4b74c354cd86",
+    "seed2/model.zip": "b7c852905388110bf8399eb10cf3aca152e57ed695f426804f1ed9877a08a342"
+  }
+}

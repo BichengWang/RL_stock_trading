@@ -171,6 +171,10 @@ Fees must be finite fractions in `[0, 1)`. Backtests write their effective
 settings to `results/<run>/run_config.json`; the saved checkpoint settings
 remain unchanged.
 
+Replay preserves saved settings for omitted options. Explicitly supplied
+options override them even when they match the training CLI defaults; for
+example, `--leverage 1.0` uses unleveraged targets for an LSTM checkpoint.
+
 
 ### Portfolio allocation
 
@@ -510,7 +514,20 @@ They cover accounting with overnight/intraday gaps, exact fee-adjusted
 allocation, causal universe selection and features, validation/LSTM label
 boundaries, complete ensemble transitions, metrics and baselines, Yahoo's
 adjusted OHLC handling, saved-model replay and short offline runs of all
-active pipelines. Experiment-selection tests exclude final-period scores.
+active pipelines, including successful completion of the installed CLI.
+Experiment-selection tests exclude final-period scores.
+
+CI also builds a wheel from the source archive, verifies dependency metadata
+and checks the installed command outside the checkout. To build both artifacts
+locally:
+
+```bash
+python -m pip install build
+python -m build
+```
+
+The artifacts are written to `dist/`. The source archive includes the dependency
+declarations and test support files needed to build and verify it independently.
 
 ## Pull requests
 

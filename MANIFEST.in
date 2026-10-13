@@ -1,0 +1,6 @@
+include main.py
+include pytest.ini
+include requirements.in
+include requirements.txt
+include ruff.toml
+recursive-include tests *.py

@@ -3,11 +3,21 @@
 import datetime
 import logging
 import os
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 
 from rl.config import config
 
 MODES = ("train", "backtest", "ensemble", "lstm", "download_data")
+
+
+class _StoreExplicit(Action):
+    """Record supplied replay options, including values equal to defaults."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        supplied = set(getattr(namespace, "_explicit_options", ()))
+        supplied.add(self.dest)
+        namespace._explicit_options = supplied
 
 
 def build_parser():
@@ -32,15 +42,19 @@ def build_parser():
         default=None,
         help="where prices come from (default: csv when --data-file is given, else yahoo)",
     )
-    data.add_argument("--data-file", help="CSV of date,tic,open,high,low,close,volume rows")
+    data.add_argument(
+        "--data-file", action=_StoreExplicit,
+        help="CSV of date,tic,open,high,low,close,volume rows",
+    )
     data.add_argument("--tickers", nargs="+", help="tickers to trade (default: Dow 30)")
     data.add_argument("--start-date", default=config.START_DATE)
     data.add_argument(
         "--start-trade-date",
+        action=_StoreExplicit,
         default=config.START_TRADE_DATE,
         help="first day of the trading (test) period; earlier days are for training",
     )
-    data.add_argument("--end-date", default=config.END_DATE, help="exclusive")
+    data.add_argument("--end-date", action=_StoreExplicit, default=config.END_DATE, help="exclusive")
     data.add_argument("--output", help="download_data: output CSV path")
 
     agent = parser.add_argument_group("agent")
@@ -80,6 +94,7 @@ def build_parser():
     lstm.add_argument("--lstm-loss", choices=("mape", "mse"), default="mape")
     lstm.add_argument(
         "--leverage",
+        action=_StoreExplicit,
         type=float,
         default=1.0,
         help="fraction of the account invested when every stock is forecast to rise",
@@ -102,7 +117,8 @@ def build_parser():
     )
     env.add_argument("--no-turbulence", action="store_true", help="disable turbulence liquidation")
     env.add_argument(
-        "--turbulence-threshold", type=float, help="fixed liquidation threshold (overrides quantile)"
+        "--turbulence-threshold", action=_StoreExplicit, type=float,
+        help="fixed liquidation threshold (overrides quantile)",
     )
     env.add_argument(
         "--turbulence-quantile",
@@ -112,10 +128,13 @@ def build_parser():
     )
 
     out = parser.add_argument_group("output")
-    out.add_argument("--benchmark", help="Yahoo ticker to compare against, e.g. ^DJI or SPY")
+    out.add_argument(
+        "--benchmark", action=_StoreExplicit,
+        help="Yahoo ticker to compare against, e.g. ^DJI or SPY",
+    )
     out.add_argument("--run-name", help="output sub-directory name (default: timestamp_agent)")
     out.add_argument("--model-dir", help="backtest: directory of a saved run")
-    out.add_argument("--results-dir", default=config.RESULTS_DIR)
+    out.add_argument("--results-dir", action=_StoreExplicit, default=config.RESULTS_DIR)
     out.add_argument("--trained-model-dir", default=config.TRAINED_MODEL_DIR)
     out.add_argument("-v", "--verbose", action="store_true", help="show stable-baselines3 training logs")
     return parser
@@ -168,16 +187,18 @@ def _train_config(options):
     )
 
 
-def _explicit(parser, options, names):
-    """Options from ``names`` whose value differs from the parser default."""
+def _explicit(options, names):
+    """Options from ``names`` explicitly supplied by the caller."""
+    supplied = getattr(options, "_explicit_options", ())
     return {
         name: getattr(options, name)
         for name in names
-        if getattr(options, name) != parser.get_default(name)
+        if name in supplied
     }
 
 
 def main(argv=None):
+    """Run the CLI and return the pipeline result for Python callers."""
     parser = build_parser()
     options = parser.parse_args(argv)
     logging.basicConfig(
@@ -211,7 +232,6 @@ def main(argv=None):
         if not options.model_dir:
             parser.error("--model-dir is required for --mode backtest")
         overrides = _explicit(
-            parser,
             options,
             ["data_file", "start_trade_date", "end_date", "benchmark", "turbulence_threshold",
              "results_dir", "leverage"],
@@ -231,3 +251,8 @@ def main(argv=None):
         result = run_training(_train_config(options))
     log.info("Results written to %s", result["results_dir"])
     return result
+
+
+def entrypoint():
+    """Run the installed command with a successful exit code on completion."""
+    main()

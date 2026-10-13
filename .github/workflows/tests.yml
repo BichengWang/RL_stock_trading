@@ -49,10 +49,13 @@ jobs:
           with ZipFile(next(Path("dist").glob("*.whl"))) as wheel:
               name = next(name for name in wheel.namelist() if name.endswith(".dist-info/METADATA"))
               metadata = BytesParser().parsebytes(wheel.read(name))
+              wheel_files = set(wheel.namelist())
           packaged = {
               str(Requirement(value)) for value in metadata.get_all("Requires-Dist", [])
           }
           assert declared <= packaged, f"Missing dependencies: {declared - packaged}"
+          modules = {path.as_posix() for path in Path("rl").rglob("*.py")}
+          assert modules <= wheel_files, f"Modules missing from the wheel: {sorted(modules - wheel_files)}"
           with tarfile.open(next(Path("dist").glob("*.tar.gz"))) as archive:
               files = {name.split("/", 1)[-1] for name in archive.getnames()}
           required = {"requirements.in", "pytest.ini", "main.py", "tests/conftest.py"}

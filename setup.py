@@ -21,13 +21,14 @@ setup(
     install_requires=REQUIRES,
     extras_require={"test": ["pytest>=7.0"], "lint": ["ruff>=0.5"]},
     entry_points={"console_scripts": ["rl-pricing=rl.cli:entrypoint"]},
-    description="Deep reinforcement learning for stock portfolio trading, adapted from the FinRL library.",
-    long_description="""RL-pricing applies deep reinforcement learning (A2C, PPO, DDPG, SAC,
-    TD3 and a rolling ensemble) to multi-stock portfolio trading and benchmarks
-    the results against rule-based portfolios and market indices.
+    description="An honest, live-forward-tested benchmark for reinforcement learning portfolio policies.",
+    long_description="""RL-pricing evaluates portfolio policies (deep RL agents, forecasters and
+    rule-based baselines) under one causal execution model: signals at the close,
+    fills at the next open, proportional fees, survivorship-free universes, multiple
+    seeds and a live forward-test track scored only on data after each policy is frozen.
 
-    The environment, preprocessing, and training code are adapted from FinRL
-    (https://github.com/AI4Finance-Foundation/FinRL), which is MIT-licensed.
+    The training toolkit's environment, preprocessing and training code are adapted
+    from FinRL (https://github.com/AI4Finance-Foundation/FinRL), which is MIT-licensed.
     """,
     classifiers=[
         # Trove classifiers
@@ -41,7 +42,7 @@ setup(
         "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: Implementation :: CPython",
     ],
-    keywords="reinforcement learning, stock trading",
+    keywords="reinforcement learning, portfolio management, backtesting, benchmark, leaderboard",
     platforms=["any"],
     python_requires=">=3.10",
 )

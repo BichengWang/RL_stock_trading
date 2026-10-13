@@ -10,6 +10,8 @@ as :meth:`rl.env.env_stocktrading.StockTradingEnv.save_asset_memory`.
 import numpy as np
 import pandas as pd
 
+from rl.trade.execution import rebalance_positions
+
 
 def _price_matrices(df):
     for column in ("open", "close"):
@@ -26,47 +28,6 @@ def _price_matrices(df):
         if not np.isfinite(values).all() or (values <= 0).any():
             raise ValueError("Every date and ticker must have finite positive {} prices".format(name))
     return open_prices, close
-
-
-def _rebalance_positions(cash, positions, weights, transaction_cost_pct):
-    """Solve self-financing fractional targets at the current execution prices.
-
-    For pre-trade equity B and post-fee equity V, solve
-    V + fee * sum(abs(weights * V - positions)) = B. The left side is
-    piecewise linear and convex. Every non-final Newton step from B crosses
-    a breakpoint, so the solver needs at most one step per position plus
-    the final linear solve. A reusable work array avoids per-step allocations.
-    """
-    fee = float(transaction_cost_pct)
-    if not np.isfinite(fee) or fee < 0:
-        raise ValueError("transaction_cost_pct must be finite and nonnegative")
-    total = float(cash + positions.sum())
-    net = total
-    cost = 0.0
-    if fee:
-        work = np.empty_like(positions)
-        for _ in range(positions.size + 2):
-            np.multiply(weights, net, out=work)
-            np.subtract(work, positions, out=work)
-            np.sign(work, out=work)
-            slope = 1 + fee * np.dot(work, weights)
-            if slope <= 0:
-                raise ValueError("Transaction costs leave no self-financing portfolio")
-            adjusted = (total + fee * np.dot(work, positions)) / slope
-            if adjusted < 0:
-                raise ValueError("Transaction costs leave no self-financing portfolio")
-            converged = abs(adjusted - net) <= 4 * np.spacing(max(1.0, abs(total)))
-            net = adjusted
-            if converged:
-                break
-        else:
-            raise ArithmeticError("Fee-adjusted portfolio rebalance did not converge")
-    target = weights * net
-    if fee:
-        np.subtract(target, positions, out=work)
-        np.abs(work, out=work)
-        cost = float(fee * work.sum())
-    return target, float(total - target.sum() - cost), cost
 
 
 def buy_and_hold(df, initial_amount=1_000_000, buy_cost_pct=0.0):
@@ -103,7 +64,7 @@ def equal_weight_rebalanced(
     values[0] = initial_amount
     for t in range(1, n_days):
         if (t - 1) % rebalance_every == 0:
-            positions, cash, _ = _rebalance_positions(
+            positions, cash, _ = rebalance_positions(
                 cash, shares * opens[t], target, transaction_cost_pct
             )
             shares = positions / opens[t]
@@ -132,7 +93,7 @@ def target_weights_strategy(df, weights, initial_amount=1_000_000, transaction_c
     values = np.empty(len(closes))
     values[0] = initial_amount
     for t in range(1, len(closes)):
-        positions, cash, _ = _rebalance_positions(
+        positions, cash, _ = rebalance_positions(
             cash, shares * opens[t], targets[t - 1], transaction_cost_pct
         )
         shares = positions / opens[t]

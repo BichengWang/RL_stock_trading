@@ -1,0 +1,141 @@
+name: bench
+
+on:
+  pull_request:
+    paths:
+      - "submissions/**"
+      - "rl/bench/**"
+      - ".github/workflows/bench.yml"
+  push:
+    branches: [main]
+    paths:
+      - "submissions/**"
+  schedule:
+    # Monthly, on the 2nd, after the previous month's sessions have settled.
+    - cron: "0 6 2 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # Pull requests: every submission builds and the baselines reproduce on offline data.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject edits to bot-owned results
+        # Publication times and live records are written only by this workflow on main.
+        run: |
+          if git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" | grep -E '^leaderboard/(publications\.json|live/)'; then
+            echo "::error::leaderboard/publications.json and leaderboard/live/ are written by CI only"
+            exit 1
+          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[test]"
+      - name: Validate submissions
+        run: rl-pricing bench validate
+      - name: Run baselines on the synthetic task
+        run: rl-pricing bench run-all --task synthetic --kind baseline --out-root "$RUNNER_TEMP/board"
+      - name: Render leaderboard
+        run: |
+          rl-pricing bench leaderboard --out-root "$RUNNER_TEMP/board" --no-readme > /dev/null
+          cat "$RUNNER_TEMP/board/LEADERBOARD.md" >> "$GITHUB_STEP_SUMMARY"
+
+  freeze:
+    # Merged submissions are frozen on today's data for every task with a live
+    # track (unless they arrive already frozen), then stamped as published.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      contents: write
+    concurrency:
+      group: bench-write
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Cache benchmark data
+        uses: actions/cache@v4
+        with:
+          path: datasets/bench
+          key: bench-data-${{ github.run_id }}
+          restore-keys: bench-data-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[test]"
+      - name: Freeze submissions that have no freeze yet
+        run: rl-pricing bench freeze
+      - name: Publish new freezes
+        run: rl-pricing bench publish
+      - name: Commit frozen policies and publication times
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add submissions leaderboard
+          if git diff --cached --quiet; then
+            echo "Nothing to freeze"
+          else
+            git commit -m "bench: freeze new submissions [skip ci]"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+  live:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      contents: write
+    concurrency:
+      group: bench-write
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Cache benchmark data
+        uses: actions/cache@v4
+        with:
+          path: datasets/bench
+          key: bench-data-${{ github.run_id }}
+          restore-keys: bench-data-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[test]"
+      - name: Score frozen policies on new sessions
+        run: rl-pricing bench live --refresh
+      - name: Render leaderboard
+        run: rl-pricing bench leaderboard
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add leaderboard README.md
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "bench: update live leaderboard [skip ci]"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

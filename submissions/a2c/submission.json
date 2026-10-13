@@ -1,0 +1,16 @@
+{
+  "name": "A2C",
+  "kind": "rl",
+  "policy": "rl.bench.policies.sb3:SB3Policy",
+  "params": {
+    "algo": "a2c",
+    "timesteps": 200000,
+    "episode_length": 252,
+    "net_arch": [64, 64],
+    "algo_kwargs": {"n_steps": 64}
+  },
+  "trials": 1,
+  "authors": ["RL-pricing"],
+  "url": "",
+  "description": "A2C (Stable-Baselines3, default hyperparameters) trained on PortfolioEnv: 252-session random-start episodes, reward = log equity change net of fees, softmax-over-logits long-only weights with cash. Observes causal scale-free per-asset features, current weights and cash. The checkpoint with the best validation Sharpe is kept. No tuning: trials counts this single configuration."
+}

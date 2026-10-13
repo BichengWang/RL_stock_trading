@@ -1,0 +1,16 @@
+{
+  "name": "Minimum variance",
+  "kind": "baseline",
+  "policy": "rl.bench.policies.baselines:MinimumVariance",
+  "params": {
+    "lookback": 252,
+    "frequency": "monthly",
+    "shrinkage": 0.1
+  },
+  "trials": 1,
+  "authors": [
+    "RL-pricing maintainers"
+  ],
+  "url": "",
+  "description": "Long-only minimum-variance portfolio from a diagonally shrunk 252-day covariance, rebalanced monthly (Clarke, de Silva & Thorley 2006)."
+}

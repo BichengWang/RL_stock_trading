@@ -145,3 +145,11 @@ dmypy.json
 *.csv
 *.zip
 *.png
+
+# Benchmark submissions (including frozen models) and results are tracked
+!submissions/**/*.csv
+!submissions/**/*.zip
+!submissions/**/*.png
+!leaderboard/**/*.csv
+!leaderboard/**/*.zip
+!leaderboard/**/*.png

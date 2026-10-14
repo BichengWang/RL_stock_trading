@@ -1,5 +1,14 @@
 {
   "algo": "td3",
+  "layers": [
+    "dense",
+    "relu",
+    "dense",
+    "relu",
+    "dense",
+    "tanh"
+  ],
+  "output": "squash",
   "best_step": 20000,
-  "best_sharpe": -0.025275702193675278
+  "best_sharpe": -0.02350356903046404
 }

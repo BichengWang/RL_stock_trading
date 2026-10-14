@@ -165,6 +165,20 @@ def test_fitted_policy_acts_with_valid_weights_and_restores_from_disk(tmp_path, 
     for view, expected in zip(views, weights):
         assert np.array_equal(restored.act(view), expected)
     assert restored.best_step == policy.best_step and restored.best_sharpe == policy.best_sharpe
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["actor.npz", "meta.json"]
+
+
+@pytest.mark.parametrize("algo", ["ppo", "a2c", "sac", "td3", "ddpg"])
+def test_exported_actor_reproduces_the_trained_models_deterministic_actions(algo):
+    policy = tiny(algo)
+    policy.fit(synthetic_history(), np.datetime64("2017-01-02"), seed=2)
+    size = policy.model.observation_space.shape[0]
+    rng = np.random.default_rng(0)
+    # Large observations push actions into the clip/squash bounds.
+    for obs in [*rng.normal(size=(20, size)), *rng.normal(scale=50.0, size=(5, size))]:
+        obs = obs.astype(np.float32)
+        expected, _ = policy.model.predict(obs, deterministic=True)
+        np.testing.assert_allclose(policy.actor(obs), expected, rtol=1e-5, atol=1e-5)
 
 
 def test_fit_is_deterministic_for_a_seed_and_depends_on_it():

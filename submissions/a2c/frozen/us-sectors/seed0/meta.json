@@ -1,5 +1,13 @@
 {
   "algo": "a2c",
-  "best_step": 80000,
-  "best_sharpe": 0.08484735185219752
+  "layers": [
+    "dense",
+    "tanh",
+    "dense",
+    "tanh",
+    "dense"
+  ],
+  "output": "clip",
+  "best_step": 40000,
+  "best_sharpe": 0.08728371949433926
 }

@@ -6,13 +6,13 @@
     "lookback": 200,
     "frequency": "monthly"
   },
-  "fitted_through": "2026-10-12",
-  "validation_start": "2023-10-12",
-  "frozen_at": "2026-10-13T08:26:06+00:00",
+  "fitted_through": "2026-10-13",
+  "validation_start": "2023-10-13",
+  "frozen_at": "2026-10-14T16:46:43+00:00",
   "seeds": [
     0
   ],
-  "data_sha256": "05d8520d78df3f3be6257ef23e6c9c03a54018d4abc1dfaedfb24c650ef8e8c0",
-  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "data_sha256": "d2ef108cf84a2dfb9823decafc7aa614586376f55327e016d9b844e5825395b6",
+  "commit": "dcd69cb8ba13e45b76a2b1941ce886307de0a27a",
   "artifacts": {}
 }

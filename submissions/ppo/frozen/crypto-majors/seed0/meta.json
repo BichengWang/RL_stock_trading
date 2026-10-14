@@ -1,5 +1,13 @@
 {
   "algo": "ppo",
-  "best_step": 160000,
-  "best_sharpe": -0.024814335172192604
+  "layers": [
+    "dense",
+    "tanh",
+    "dense",
+    "tanh",
+    "dense"
+  ],
+  "output": "clip",
+  "best_step": 20000,
+  "best_sharpe": -0.03907057571230169
 }

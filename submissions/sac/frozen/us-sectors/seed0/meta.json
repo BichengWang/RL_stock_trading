@@ -1,5 +1,14 @@
 {
   "algo": "sac",
-  "best_step": 30000,
-  "best_sharpe": 0.07807067139557643
+  "layers": [
+    "dense",
+    "relu",
+    "dense",
+    "relu",
+    "dense",
+    "tanh"
+  ],
+  "output": "squash",
+  "best_step": 80000,
+  "best_sharpe": 0.08017228036941011
 }

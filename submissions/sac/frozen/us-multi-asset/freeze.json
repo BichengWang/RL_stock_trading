@@ -11,22 +11,22 @@
       64
     ]
   },
-  "fitted_through": "2026-10-12",
-  "validation_start": "2023-10-12",
-  "frozen_at": "2026-10-13T08:19:22+00:00",
+  "fitted_through": "2026-10-13",
+  "validation_start": "2023-10-13",
+  "frozen_at": "2026-10-14T06:00:08+00:00",
   "seeds": [
     0,
     1,
     2
   ],
-  "data_sha256": "a2b9c403fb6ddc9e8a958a5c08993b0ebada09d0d2853f012192e595379c0438",
-  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "data_sha256": "7c7c14d5230e71436a36a42fd3ce86e6d850a4c18edd8783e97c9d4724f5d2a5",
+  "commit": "8f460ac4b94045c0b2dd438b5ba9b429066d2d97",
   "artifacts": {
-    "seed0/meta.json": "5052791592b2defbff5d650fa6d621dac48e25d7d307522fba5f0489c3dba5ed",
-    "seed0/model.zip": "b5c34cc469a05aac9b9203d9ad9d175ba24ae4d6e1c19289a31ab7e81ba31777",
-    "seed1/meta.json": "c2a871b3ab5ab7351b7e416f5bff248a3893305a0a031e0df9ef069f58b9b79a",
-    "seed1/model.zip": "51a676fac9aa5a09d77e0984a27dac5e93d4cf66b5ae28c8c7f8429eba45f805",
-    "seed2/meta.json": "7f7f3638c9c25e8a4fcbfe697aa8965cd4cb94751233cfa90fc80832685e7989",
-    "seed2/model.zip": "086f989866fa296fa6488999883b10094f12c5bef2874f805701ceeb6c438ebc"
+    "seed0/actor.npz": "5ba7e4aa719abbc01fcc21924ec74cd18153360b9b692c7bc52394aadfbec6dd",
+    "seed0/meta.json": "250bc6c0210be4444d426204e546e9f0e68737bd76fa7a8d2519e268cc2d0a1d",
+    "seed1/actor.npz": "a5aa71f404405afd87a1e1a7f8d1cdb2b561794cdf7ddc48ddfb8d0cfcac332c",
+    "seed1/meta.json": "683c76186f1a240d5679cbc17eb04f8bf7bd9fbb266d00f89c6c62f745b0fb0e",
+    "seed2/actor.npz": "6fab8fa661e5a9af31af16623bfb6f4fb71ee94267cb5dd7172008e2652b99b2",
+    "seed2/meta.json": "76f2268999dbe310bbd78b449f971d9b1828da4440ac7c3be391c50ad1181ef3"
   }
 }

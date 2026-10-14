@@ -15,6 +15,11 @@ end of training. Training itself never sees a validation session.
 
 Pass the task's ``transaction_cost`` to the constructor: the policy has no
 other way to learn the fee it will be scored with.
+
+After training, the deterministic actor is exported to plain arrays
+(:class:`Actor`) and every decision uses that export. ``save`` writes only
+those arrays, so a frozen policy needs neither the optimizer state nor a
+compatible Stable-Baselines3 version to be replayed years later.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ import contextlib
 import copy
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -32,6 +38,7 @@ from stable_baselines3 import A2C, DDPG, PPO, SAC, TD3
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.utils import set_random_seed
+from torch import nn
 
 from rl.bench.engine import Decision, simulate
 from rl.bench.features import LOOKBACK, latest_features
@@ -44,8 +51,9 @@ logger = logging.getLogger(__name__)
 ALGORITHMS = {"ppo": PPO, "a2c": A2C, "sac": SAC, "td3": TD3, "ddpg": DDPG}
 _OFF_POLICY = ("sac", "td3", "ddpg")
 _EXPLORATION_NOISE = 0.1  # action noise (in units of the action range) for DDPG and TD3
-_MODEL_FILE = "model"  # SB3 appends ".zip"
+_ACTOR_FILE = "actor.npz"
 _META_FILE = "meta.json"
+_ACTIVATIONS = {nn.Tanh: "tanh", nn.ReLU: "relu"}
 
 
 @contextlib.contextmanager
@@ -87,6 +95,93 @@ class _Selection(BaseCallback):
     def _on_training_end(self) -> None:
         if self._last != self.num_timesteps:
             self._evaluate()
+
+
+@dataclass(frozen=True)
+class Actor:
+    """A trained agent's deterministic action function as plain arrays.
+
+    ``layers`` alternate dense ``(weight, bias)`` pairs and activation names;
+    ``output`` is ``"clip"`` (Gaussian policies: clip the mean to the action
+    bounds) or ``"squash"`` (tanh-bounded policies: rescale from [-1, 1]).
+    """
+
+    layers: tuple
+    output: str
+    low: np.ndarray
+    high: np.ndarray
+
+    @property
+    def input_size(self) -> int:
+        return self.layers[0][0].shape[1]
+
+    def __call__(self, obs: np.ndarray) -> np.ndarray:
+        x = np.asarray(obs, dtype=np.float64)
+        for layer in self.layers:
+            if layer == "tanh":
+                x = np.tanh(x)
+            elif layer == "relu":
+                x = np.maximum(x, 0.0)
+            else:
+                weight, bias = layer
+                x = weight @ x + bias
+        if self.output == "squash":
+            return self.low + 0.5 * (x + 1.0) * (self.high - self.low)
+        return np.clip(x, self.low, self.high)
+
+    @classmethod
+    def from_model(cls, algo: str, model) -> Actor:
+        policy = model.policy
+        if algo in ("ppo", "a2c"):
+            modules, extra = [policy.mlp_extractor.policy_net, policy.action_net], []
+        elif algo == "sac":
+            modules, extra = [policy.actor.latent_pi, policy.actor.mu], ["tanh"]
+        else:  # td3, ddpg: the actor network ends in tanh itself
+            modules, extra = [policy.actor.mu], []
+        layers = [layer for module in modules for layer in _array_layers(module)] + extra
+        space = model.action_space
+        return cls(
+            layers=tuple(layers),
+            output="squash" if policy.squash_output else "clip",
+            low=np.asarray(space.low, dtype=np.float64),
+            high=np.asarray(space.high, dtype=np.float64),
+        )
+
+    def save(self, path: Path) -> list[str]:
+        """Write the arrays to ``path``; returns the layer spec for metadata."""
+        arrays, spec = {"low": self.low, "high": self.high}, []
+        for i, layer in enumerate(self.layers):
+            if isinstance(layer, str):
+                spec.append(layer)
+            else:
+                arrays["w{}".format(i)], arrays["b{}".format(i)] = layer
+                spec.append("dense")
+        np.savez_compressed(path, **arrays)
+        return spec
+
+    @classmethod
+    def load(cls, path: Path, spec: list[str], output: str) -> Actor:
+        with np.load(path) as arrays:
+            layers = tuple(
+                (arrays["w{}".format(i)], arrays["b{}".format(i)]) if kind == "dense" else kind
+                for i, kind in enumerate(spec)
+            )
+            return cls(layers=layers, output=output, low=arrays["low"], high=arrays["high"])
+
+
+def _array_layers(module: nn.Module) -> list:
+    """Dense layers as float64 arrays and activations as names, in forward order."""
+    children = list(module.children())
+    if children:
+        return [layer for child in children for layer in _array_layers(child)]
+    if isinstance(module, nn.Linear):
+        weight = module.weight.detach().cpu().numpy().astype(np.float64)
+        return [(weight, module.bias.detach().cpu().numpy().astype(np.float64))]
+    if type(module) in _ACTIVATIONS:
+        return [_ACTIVATIONS[type(module)]]
+    if isinstance(module, (nn.Flatten, nn.Identity)):
+        return []
+    raise TypeError("Cannot export layer {!r}".format(module))
 
 
 class SB3Policy(Policy):
@@ -140,27 +235,32 @@ class SB3Policy(Policy):
         self.algo_kwargs = dict(algo_kwargs or {})
         self.transaction_cost = transaction_cost
         self.model = None
+        self.actor: Optional[Actor] = None
         self._validation = None
         self.best_step: Optional[int] = None
         self.best_sharpe: Optional[float] = None
 
-    def _decide(self, model, view: MarketView) -> np.ndarray:
+    def _decide(self, act, input_size: int, view: MarketView) -> np.ndarray:
         features = latest_features(view.history.window(LOOKBACK))
         obs = observation(features, view.weights)
-        if obs.shape != model.observation_space.shape:
+        if obs.shape != (input_size,):
             raise ValueError(
-                "Model expects observations of shape {}, got {}: it was trained on a different universe".format(
-                    model.observation_space.shape, obs.shape
+                "Model expects observations of size {}, got {}: it was trained on a different universe".format(
+                    input_size, obs.shape
                 )
             )
-        action, _ = model.predict(obs, deterministic=True)
-        return actions_to_weights(action, view.listed)
+        return actions_to_weights(act(obs), view.listed)
+
+    def _model_decide(self, model, view: MarketView) -> np.ndarray:
+        return self._decide(
+            lambda obs: model.predict(obs, deterministic=True)[0], model.observation_space.shape[0], view
+        )
 
     def _validation_sharpe(self, model) -> float:
         """Per-session Sharpe ratio of the deterministic policy on the validation sessions."""
         history, start = self._validation
         result = simulate(
-            history, lambda view: self._decide(model, view), start, self.transaction_cost
+            history, lambda view: self._model_decide(model, view), start, self.transaction_cost
         )
         returns = result.returns
         spread = returns.std(ddof=1) if returns.size > 1 else 0.0
@@ -205,19 +305,26 @@ class SB3Policy(Policy):
                 self.best_step, self.best_sharpe = model.num_timesteps, None
         self._validation = None
         self.model = model
+        self.actor = Actor.from_model(self.algo, model)
 
     def act(self, view: MarketView) -> Decision:
-        if self.model is None:
+        if self.actor is None:
             raise RuntimeError("SB3Policy has no model: call fit() or load() first")
-        return self._decide(self.model, view)
+        return self._decide(self.actor, self.actor.input_size, view)
 
     def save(self, directory: Path) -> None:
-        if self.model is None:
+        if self.actor is None:
             raise RuntimeError("SB3Policy has no model: call fit() or load() first")
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
-        self.model.save(directory / _MODEL_FILE)
-        meta = {"algo": self.algo, "best_step": self.best_step, "best_sharpe": self.best_sharpe}
+        layers = self.actor.save(directory / _ACTOR_FILE)
+        meta = {
+            "algo": self.algo,
+            "layers": layers,
+            "output": self.actor.output,
+            "best_step": self.best_step,
+            "best_sharpe": self.best_sharpe,
+        }
         (directory / _META_FILE).write_text(json.dumps(meta, indent=2))
 
     def load(self, directory: Path) -> None:
@@ -225,5 +332,6 @@ class SB3Policy(Policy):
         meta = json.loads((directory / _META_FILE).read_text())
         if meta["algo"] != self.algo:
             raise ValueError("Saved model is {!r} but this policy is {!r}".format(meta["algo"], self.algo))
-        self.model = ALGORITHMS[self.algo].load(directory / (_MODEL_FILE + ".zip"), device="cpu")
+        self.actor = Actor.load(directory / _ACTOR_FILE, meta["layers"], meta["output"])
+        self.model = None
         self.best_step, self.best_sharpe = meta["best_step"], meta["best_sharpe"]

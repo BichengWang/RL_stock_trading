@@ -1,5 +1,14 @@
 {
   "algo": "ddpg",
-  "best_step": 20000,
-  "best_sharpe": 0.06331634272817681
+  "layers": [
+    "dense",
+    "relu",
+    "dense",
+    "relu",
+    "dense",
+    "tanh"
+  ],
+  "output": "squash",
+  "best_step": 70000,
+  "best_sharpe": 0.08685969034078678
 }

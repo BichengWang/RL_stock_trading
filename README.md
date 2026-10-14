@@ -18,7 +18,7 @@ that did not exist when it was published.
 Historical track, test windows 2018–2025 (US ETFs) and 2023–2025 (crypto),
 untuned Stable-Baselines3 agents, 5 seeds each:
 
-- **No learned policy beats 1/N buy-and-hold.** All 24 RL and LSTM entries
+- **No learned policy beats 1/N buy-and-hold here.** All 24 RL and LSTM entries
   across the four tasks have a lower seed-averaged Sharpe ratio than holding
   every asset in equal weight. Only 3 of their 120 individual seeds do better,
   so cherry-picking one would make a publishable-looking result.
@@ -31,7 +31,10 @@ untuned Stable-Baselines3 agents, 5 seeds each:
 - **The one significant win is not RL.** In crypto, long-only minimum
   variance beats 1/N (ΔSharpe +0.86, bootstrap p < 0.001), mostly by holding
   the two least volatile coins, BTC (50% on average) and BNB (36%).
-- **Our own paper does not survive.** See [below](#re-evaluating-our-own-paper).
+- **Our own paper only partly survives.** Its 55.5% annual return does not
+  reproduce in 50 runs; its Sharpe ratios appear as the best of five seeds;
+  only SAC stays ahead of 1/N on average, not significantly. See
+  [below](#re-evaluating-our-own-paper).
 
 These are reference agents with default hyperparameters (`trials: 1`).
 Better-tuned submissions are exactly what the leaderboard is for, and they
@@ -88,26 +91,49 @@ stocks in 2019–2020, with TD3 and SAC close behind. Those are single runs on a
 universe picked in 2021 from the largest companies, which the paper itself
 lists as limitations.
 
-The `paper-2021` task re-runs that setup (same 20 stocks, same 2019–2020
-test window, 0.1% fees) under this benchmark's execution model with 5 seeds:
+We re-ran it three ways, 5 seeds per agent, same 20 stocks, same 2019–2020
+window, 0.1% fees:
 
-| Agent | Reported Sharpe (1 run) | Here: mean ± sd (5 seeds) | Here: best seed |
-| --- | --- | --- | --- |
-| DDPG | 1.38 | 0.70 ± 0.17 | 0.97 |
-| TD3 | 1.37 | 0.70 ± 0.21 | 1.01 |
-| SAC | 1.33 | 0.66 ± 0.26 | 0.82 |
-| PPO | 1.09 | 0.98 ± 0.04 | 1.02 |
-| A2C | 0.82 | 1.03 ± 0.01 | 1.05 |
-| LSTM forecast | 1.19 | 0.75 ± 0.29 | 1.08 |
-| *1/N buy and hold* | – | *1.11* | – |
+- **Share env + crash rule**: the paper's own share-trading environment
+  (`python main.py --mode train`, now with next-open fills), including its
+  default rule that sells everything when a market-turbulence index spikes.
+- **Share env, no rule**: the same with `--no-turbulence`.
+- **Benchmark**: this repository's `paper-2021` task (portfolio weights, no
+  hand-coded exits).
 
-Simply holding the 20 stocks in equal weight earned 29.9% a year at Sharpe
-1.11, so much of the reported return came from the hindsight-chosen universe
-and a bull market. No seed of any agent beat that. This is not an exact
-reproduction: the agents here allocate portfolio weights instead of trading
-share counts, and use this benchmark's features and default hyperparameters.
-The comparison shows how much a single run's result can move under stricter
-evaluation; it does not prove the paper's runs were wrong.
+Sharpe ratio, mean ± sd over 5 seeds [best seed]:
+
+| Agent | Reported (1 run) | Share env + crash rule | Share env, no rule | Benchmark |
+| --- | --- | --- | --- | --- |
+| DDPG | 1.38 | 1.16 ± 0.19 [1.43] | 1.06 ± 0.18 [1.24] | 0.70 ± 0.17 [0.97] |
+| TD3 | 1.37 | 1.10 ± 0.34 [1.37] | 1.00 ± 0.30 [1.37] | 0.70 ± 0.21 [1.01] |
+| SAC | 1.33 | 1.23 ± 0.13 [1.42] | 1.23 ± 0.18 [1.49] | 0.66 ± 0.26 [0.82] |
+| PPO | 1.09 | 1.17 ± 0.21 [1.32] | 0.95 ± 0.21 [1.21] | 0.98 ± 0.04 [1.02] |
+| A2C | 0.82 | 1.09 ± 0.15 [1.27] | 0.97 ± 0.15 [1.16] | 1.03 ± 0.01 [1.05] |
+| LSTM forecast | 1.19 | – | – | 0.75 ± 0.29 [1.08] |
+| *1/N buy and hold* | – | *1.10* | *1.10* | *1.11* |
+
+What holds up and what doesn't:
+
+- **The 55.5% return does not.** The best of the 50 share-environment runs
+  earned 46% a year and the median 26%. Holding the 20 stocks in equal
+  weight earned 29.7%, so the hindsight-chosen universe and the 2019–2020
+  bull market account for most of the headline.
+- **The Sharpe ratios are best-of-five, not typical.** Values like the
+  reported 1.33–1.38 show up as the best seed for most agents.
+- **The crash rule is not learning.** With it on, all 25 runs were moved to
+  cash on the same five sessions of March 2020 by the environment, not the agent.
+  Switching it off drops every agent's mean Sharpe except SAC's below 1/N.
+- **SAC is the one survivor, but not a significant one.** Without the rule
+  its seed-averaged Sharpe is 1.32 against 1/N's 1.10, alpha 7.5% a year. Over
+  a two-year window that is not significant (bootstrap p = 0.13, alpha
+  *t* = 1.6).
+- **The benchmark environment flips the picture.** There the same agents
+  trail 1/N. Which difference drives that is open: share counts versus
+  weights, the features, or the share environment's per-trade limits.
+
+Per-seed results, commands and the input-data hash are in
+[`leaderboard/reproductions/paper-2021-share-env.json`](leaderboard/reproductions/paper-2021-share-env.json).
 
 ## Quick start
 

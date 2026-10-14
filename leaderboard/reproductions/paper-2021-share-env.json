@@ -1,0 +1,415 @@
+{
+ "description": "Wang & Zhang (arXiv:2609.31870) setup re-run in this repository's share-trading environment (python main.py --mode train), now with next-open fills and 0.1% fees: 20 stocks, train 2000-2018, trade 2019-2020, 80,000 timesteps, default hyperparameters, 5 seeds per agent, with and without the environment's turbulence liquidation rule.",
+ "command": "python main.py --mode train --data-file datasets/paper2021.csv --start-date 2000-01-01 --start-trade-date 2019-01-01 --end-date 2021-01-01 --agent AGENT --seed SEED [--no-turbulence]",
+ "data": {
+  "download": "python main.py --mode download_data --tickers AAPL MSFT AMZN BRK-B JPM JNJ UNH HD PG NVDA DIS BAC CMCSA XOM VZ T ADBE PFE CSCO INTC --start-date 2000-01-01 --end-date 2021-01-01 --output datasets/paper2021.csv",
+  "rows": 105680,
+  "sha256": "1d65373352576fa8f30db279f13dd06201bb1c2105054e9adfcbc1cbd96f544f"
+ },
+ "equal_weight_buy_and_hold": {
+  "sharpe": 1.1049,
+  "annual_return": 0.2966
+ },
+ "runs": [
+  {
+   "turbulence_rule": true,
+   "agent": "a2c",
+   "seed": 0,
+   "sharpe": 1.267,
+   "annual_return": 0.2818,
+   "max_drawdown": -0.1848
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "a2c",
+   "seed": 1,
+   "sharpe": 1.0856,
+   "annual_return": 0.2185,
+   "max_drawdown": -0.1628
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "a2c",
+   "seed": 2,
+   "sharpe": 1.2043,
+   "annual_return": 0.245,
+   "max_drawdown": -0.1889
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "a2c",
+   "seed": 3,
+   "sharpe": 1.0019,
+   "annual_return": 0.1652,
+   "max_drawdown": -0.145
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "a2c",
+   "seed": 4,
+   "sharpe": 0.9081,
+   "annual_return": 0.1658,
+   "max_drawdown": -0.1772
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ddpg",
+   "seed": 0,
+   "sharpe": 1.4252,
+   "annual_return": 0.3037,
+   "max_drawdown": -0.181
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ddpg",
+   "seed": 1,
+   "sharpe": 1.0823,
+   "annual_return": 0.2193,
+   "max_drawdown": -0.1863
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ddpg",
+   "seed": 2,
+   "sharpe": 1.1795,
+   "annual_return": 0.2567,
+   "max_drawdown": -0.1739
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ddpg",
+   "seed": 3,
+   "sharpe": 1.2026,
+   "annual_return": 0.2905,
+   "max_drawdown": -0.1773
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ddpg",
+   "seed": 4,
+   "sharpe": 0.9154,
+   "annual_return": 0.1589,
+   "max_drawdown": -0.1839
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "a2c",
+   "seed": 0,
+   "sharpe": 1.1626,
+   "annual_return": 0.3543,
+   "max_drawdown": -0.2844
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "a2c",
+   "seed": 1,
+   "sharpe": 0.9819,
+   "annual_return": 0.2634,
+   "max_drawdown": -0.2648
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "a2c",
+   "seed": 2,
+   "sharpe": 1.0339,
+   "annual_return": 0.2809,
+   "max_drawdown": -0.2873
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "a2c",
+   "seed": 3,
+   "sharpe": 0.7992,
+   "annual_return": 0.1902,
+   "max_drawdown": -0.3125
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "a2c",
+   "seed": 4,
+   "sharpe": 0.8512,
+   "annual_return": 0.2098,
+   "max_drawdown": -0.302
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ddpg",
+   "seed": 0,
+   "sharpe": 1.2423,
+   "annual_return": 0.3517,
+   "max_drawdown": -0.2725
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ddpg",
+   "seed": 1,
+   "sharpe": 0.9841,
+   "annual_return": 0.2707,
+   "max_drawdown": -0.287
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ddpg",
+   "seed": 2,
+   "sharpe": 1.1055,
+   "annual_return": 0.3181,
+   "max_drawdown": -0.2668
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ddpg",
+   "seed": 3,
+   "sharpe": 1.1816,
+   "annual_return": 0.4049,
+   "max_drawdown": -0.2566
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ddpg",
+   "seed": 4,
+   "sharpe": 0.8012,
+   "annual_return": 0.1854,
+   "max_drawdown": -0.3079
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ppo",
+   "seed": 0,
+   "sharpe": 1.0867,
+   "annual_return": 0.3284,
+   "max_drawdown": -0.2576
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ppo",
+   "seed": 1,
+   "sharpe": 0.7574,
+   "annual_return": 0.1564,
+   "max_drawdown": -0.2606
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ppo",
+   "seed": 2,
+   "sharpe": 0.7398,
+   "annual_return": 0.1927,
+   "max_drawdown": -0.3205
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ppo",
+   "seed": 3,
+   "sharpe": 0.9357,
+   "annual_return": 0.2528,
+   "max_drawdown": -0.2809
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "ppo",
+   "seed": 4,
+   "sharpe": 1.2131,
+   "annual_return": 0.3334,
+   "max_drawdown": -0.2527
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "sac",
+   "seed": 0,
+   "sharpe": 1.4888,
+   "annual_return": 0.4602,
+   "max_drawdown": -0.2248
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "sac",
+   "seed": 1,
+   "sharpe": 1.0135,
+   "annual_return": 0.2783,
+   "max_drawdown": -0.3075
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "sac",
+   "seed": 2,
+   "sharpe": 1.3338,
+   "annual_return": 0.4226,
+   "max_drawdown": -0.3219
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "sac",
+   "seed": 3,
+   "sharpe": 1.1688,
+   "annual_return": 0.4063,
+   "max_drawdown": -0.2665
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "sac",
+   "seed": 4,
+   "sharpe": 1.1435,
+   "annual_return": 0.3584,
+   "max_drawdown": -0.2284
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "td3",
+   "seed": 0,
+   "sharpe": 1.3722,
+   "annual_return": 0.4485,
+   "max_drawdown": -0.2622
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "td3",
+   "seed": 1,
+   "sharpe": 0.957,
+   "annual_return": 0.2592,
+   "max_drawdown": -0.2502
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "td3",
+   "seed": 2,
+   "sharpe": 0.5283,
+   "annual_return": 0.1083,
+   "max_drawdown": -0.3267
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "td3",
+   "seed": 3,
+   "sharpe": 1.0462,
+   "annual_return": 0.2987,
+   "max_drawdown": -0.3098
+  },
+  {
+   "turbulence_rule": false,
+   "agent": "td3",
+   "seed": 4,
+   "sharpe": 1.074,
+   "annual_return": 0.3226,
+   "max_drawdown": -0.2635
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ppo",
+   "seed": 0,
+   "sharpe": 1.3243,
+   "annual_return": 0.2227,
+   "max_drawdown": -0.1081
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ppo",
+   "seed": 1,
+   "sharpe": 1.1908,
+   "annual_return": 0.1224,
+   "max_drawdown": -0.0673
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ppo",
+   "seed": 2,
+   "sharpe": 0.8009,
+   "annual_return": 0.1057,
+   "max_drawdown": -0.1174
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ppo",
+   "seed": 3,
+   "sharpe": 1.3184,
+   "annual_return": 0.1734,
+   "max_drawdown": -0.0771
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "ppo",
+   "seed": 4,
+   "sharpe": 1.2116,
+   "annual_return": 0.1753,
+   "max_drawdown": -0.0911
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "sac",
+   "seed": 0,
+   "sharpe": 1.4212,
+   "annual_return": 0.278,
+   "max_drawdown": -0.1477
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "sac",
+   "seed": 1,
+   "sharpe": 1.0654,
+   "annual_return": 0.2112,
+   "max_drawdown": -0.2179
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "sac",
+   "seed": 2,
+   "sharpe": 1.2716,
+   "annual_return": 0.2531,
+   "max_drawdown": -0.1809
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "sac",
+   "seed": 3,
+   "sharpe": 1.2063,
+   "annual_return": 0.2621,
+   "max_drawdown": -0.1697
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "sac",
+   "seed": 4,
+   "sharpe": 1.1991,
+   "annual_return": 0.2508,
+   "max_drawdown": -0.1667
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "td3",
+   "seed": 0,
+   "sharpe": 1.3726,
+   "annual_return": 0.3126,
+   "max_drawdown": -0.2016
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "td3",
+   "seed": 1,
+   "sharpe": 0.9793,
+   "annual_return": 0.1877,
+   "max_drawdown": -0.1827
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "td3",
+   "seed": 2,
+   "sharpe": 0.5684,
+   "annual_return": 0.0879,
+   "max_drawdown": -0.2004
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "td3",
+   "seed": 3,
+   "sharpe": 1.283,
+   "annual_return": 0.2895,
+   "max_drawdown": -0.1747
+  },
+  {
+   "turbulence_rule": true,
+   "agent": "td3",
+   "seed": 4,
+   "sharpe": 1.3105,
+   "annual_return": 0.2874,
+   "max_drawdown": -0.1895
+  }
+ ]
+}

@@ -9,22 +9,22 @@
     "top": null,
     "transaction_cost": 0.001
   },
-  "fitted_through": "2026-10-12",
-  "validation_start": "2023-10-12",
-  "frozen_at": "2026-10-13T08:05:56+00:00",
+  "fitted_through": "2026-10-13",
+  "validation_start": "2023-10-13",
+  "frozen_at": "2026-10-14T16:49:03+00:00",
   "seeds": [
     0,
     1,
     2
   ],
-  "data_sha256": "05d8520d78df3f3be6257ef23e6c9c03a54018d4abc1dfaedfb24c650ef8e8c0",
-  "commit": "68c03c7f69c6e1ccb0eecaf6ba6d3c25cde6e2c0",
+  "data_sha256": "d2ef108cf84a2dfb9823decafc7aa614586376f55327e016d9b844e5825395b6",
+  "commit": "dcd69cb8ba13e45b76a2b1941ce886307de0a27a",
   "artifacts": {
-    "seed0/model.pt": "21785262fda4dd8e7fbb9bc279043b7a41bcc3b4c8aa0c5fe279a82a8f8d187b",
-    "seed0/state.json": "3cd2b0fda6f123f73c9289f36d203d8b5e7e500d400846654795e381413cfcc4",
-    "seed1/model.pt": "5a6a7731d1a7381583048722359de4bda8ee504e02109c541feb7a6f64592dab",
-    "seed1/state.json": "3cd2b0fda6f123f73c9289f36d203d8b5e7e500d400846654795e381413cfcc4",
-    "seed2/model.pt": "704d8a2613b8927507ba1c629d5f14b6004d2aad878074ef29e5ddf2a2cdd093",
-    "seed2/state.json": "3cd2b0fda6f123f73c9289f36d203d8b5e7e500d400846654795e381413cfcc4"
+    "seed0/model.pt": "1559b690c74c313ba7dda1fa29a8107ef6dd7032b425ae679d0843d0d893d996",
+    "seed0/state.json": "284af678d3fd6b81b7f53379083a70b3e9a9ab048e01c8eeb72be00a365acbc4",
+    "seed1/model.pt": "5fe0089754632fdeacf19500e4adf5157b66793a664cf93b3e048abcbc3752b8",
+    "seed1/state.json": "284af678d3fd6b81b7f53379083a70b3e9a9ab048e01c8eeb72be00a365acbc4",
+    "seed2/model.pt": "a6b35f1a2eb345a40e46a97abadbb0c54cdd69482deb97d92003a3cf6ed7d73e",
+    "seed2/state.json": "284af678d3fd6b81b7f53379083a70b3e9a9ab048e01c8eeb72be00a365acbc4"
   }
 }

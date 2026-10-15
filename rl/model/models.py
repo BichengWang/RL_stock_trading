@@ -30,6 +30,28 @@ NOISE = {
     "ornstein_uhlenbeck": OrnsteinUhlenbeckActionNoise,
 }
 
+ACTION_NOISE_SIGMA = 0.1
+
+
+def make_action_noise(spec, n_actions):
+    """Build an exploration-noise object from a name or a settings dict.
+
+    ``spec`` is ``"normal"`` / ``"ornstein_uhlenbeck"`` (sigma
+    ``ACTION_NOISE_SIGMA``) or a dict ``{"type": ..., "sigma": ..., **kwargs}``
+    whose extra entries (e.g. ``theta``, ``dt``) go to the noise class. The
+    sigma is the same for every action dimension.
+    """
+    settings = {"type": spec} if isinstance(spec, str) else dict(spec)
+    kind = settings.pop("type", None)
+    if kind not in NOISE:
+        raise ValueError(
+            "action_noise type must be one of {}, got {!r}".format(", ".join(NOISE), kind)
+        )
+    sigma = float(settings.pop("sigma", ACTION_NOISE_SIGMA))
+    if not np.isfinite(sigma) or sigma < 0:
+        raise ValueError("action_noise sigma must be finite and nonnegative")
+    return NOISE[kind](mean=np.zeros(n_actions), sigma=sigma * np.ones(n_actions), **settings)
+
 
 def _tensorboard_log(model_name):
     # SB3 refuses a log directory when tensorboard is not installed.
@@ -51,17 +73,17 @@ def build_model(
 
     ``model_kwargs`` defaults to the ``<NAME>_PARAMS`` dict in config.py and is
     copied, so neither it nor the config is modified. An ``action_noise`` entry
-    may name a noise type ("normal" or "ornstein_uhlenbeck").
+    may name a noise type ("normal" or "ornstein_uhlenbeck") or give it as a dict
+    with a ``sigma`` (see :func:`make_action_noise`).
     """
     if model_name not in MODELS:
         raise NotImplementedError(
             "Unknown model {!r}; choose from {}".format(model_name, ", ".join(MODELS))
         )
     kwargs = copy.deepcopy(MODEL_KWARGS[model_name] if model_kwargs is None else model_kwargs)
-    if isinstance(kwargs.get("action_noise"), str):
-        n_actions = env.action_space.shape[-1]
-        kwargs["action_noise"] = NOISE[kwargs["action_noise"]](
-            mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions)
+    if isinstance(kwargs.get("action_noise"), (str, dict)):
+        kwargs["action_noise"] = make_action_noise(
+            kwargs["action_noise"], env.action_space.shape[-1]
         )
     logger.info("Building %s with %s", model_name.upper(), kwargs)
     return MODELS[model_name](
@@ -261,6 +283,14 @@ class DRLEnsembleAgent:
     data before a validation window, scored by its validation Sharpe ratio,
     and the winner is retrained up to the trading window and used to trade
     it. Positions carry over from one trading window to the next.
+
+    With ``standalone_accounts`` each algorithm also trades every window with
+    its own account (positions carried over, same windows and turbulence
+    threshold) using its model refit on all data before the window, exactly as
+    the winner is; the winner's refit model is shared, so the ensemble and the
+    standalone accounts differ only in which algorithm trades each window.
+    The accounts are in ``agent_account_values``. With ``use_turbulence=False``
+    no liquidation threshold is used and no ``turbulence`` column is needed.
     """
 
     # Ties are broken in this order, as in the original implementation.
@@ -324,8 +354,10 @@ class DRLEnsembleAgent:
         save_models=True,
         results_dir=config.RESULTS_DIR,
         verbose=1,
+        use_turbulence=True,
+        standalone_accounts=False,
     ):
-        if "turbulence" not in df.columns:
+        if use_turbulence and "turbulence" not in df.columns:
             raise ValueError("The ensemble strategy needs a 'turbulence' column")
         self.df = df
         self.train_period = train_period
@@ -356,9 +388,12 @@ class DRLEnsembleAgent:
         self.save_models = save_models
         self.results_dir = results_dir
         self.verbose = verbose
+        self.use_turbulence = use_turbulence
+        self.standalone_accounts = standalone_accounts
         self.account_value = None
         self.actions = None
         self.executions = None
+        self.agent_account_values = None
 
     def _env(self, data, **kwargs):
         return StockTradingEnv(
@@ -445,10 +480,15 @@ class DRLEnsembleAgent:
         all_dates = np.sort(self.df[self.df.date >= self.train_period[0]].date.unique())
         daily_turbulence = (
             self.df.drop_duplicates(subset=["date"]).set_index("date")["turbulence"].sort_index()
+            if self.use_turbulence
+            else None
         )
         last_state = []
+        agent_states = {name: [] for name in self.MODEL_NAMES}
+        agent_values = {name: [] for name in self.MODEL_NAMES}
         records, account_values, actions, executions = [], [], [], []
         start = time.time()
+        self.agent_account_values = None
         for first in range(0, len(self.unique_trade_date) - 1, self.rebalance_window):
             last = min(first + self.rebalance_window, len(self.unique_trade_date) - 1)
             signal_date = self.unique_trade_date[first]
@@ -463,14 +503,16 @@ class DRLEnsembleAgent:
             train = data_split(self.df, self.train_period[0], validation_start)
             validation = data_split(self.df, validation_start, signal_date)
             # Both the reference quantile and regime decision use fitting history only.
-            fitted_turbulence = daily_turbulence[
-                (daily_turbulence.index >= self.train_period[0])
-                & (daily_turbulence.index < validation_start)
-            ]
-            reference = float(fitted_turbulence.quantile(0.90))
-            recent_mean = fitted_turbulence.iloc[-63:].mean()
-            threshold = reference if recent_mean > reference else float(fitted_turbulence.max())
-            threshold = threshold if threshold > 0 else None
+            threshold = None
+            if self.use_turbulence:
+                fitted_turbulence = daily_turbulence[
+                    (daily_turbulence.index >= self.train_period[0])
+                    & (daily_turbulence.index < validation_start)
+                ]
+                reference = float(fitted_turbulence.quantile(0.90))
+                recent_mean = fitted_turbulence.iloc[-63:].mean()
+                threshold = reference if recent_mean > reference else float(fitted_turbulence.max())
+                threshold = threshold if threshold > 0 else None
             sharpes = {}
             for name in self.MODEL_NAMES:
                 model = self._train(
@@ -484,10 +526,28 @@ class DRLEnsembleAgent:
                 key=lambda name: -np.inf if np.isnan(sharpes[name]) else sharpes[name],
             )
             train_full = data_split(self.df, self.train_period[0], signal_date)
-            model = self._train(
-                best, train_full, model_kwargs[best], timesteps_dict[best],
-                f"ensemble_{first}", first,
-            )
+            if self.standalone_accounts:
+                # Every algorithm is refit as the winner is; the winner's model is reused.
+                refit = {
+                    name: self._train(
+                        name, train_full, model_kwargs[name], timesteps_dict[name],
+                        f"{name}_full_{first}", first,
+                    )
+                    for name in self.MODEL_NAMES
+                }
+                model = refit[best]
+                for name in self.MODEL_NAMES:
+                    agent_states[name], own_values, _, _ = self.DRL_prediction(
+                        model=refit[name], name=name, last_state=agent_states[name],
+                        start_index=first, end_index=last, turbulence_threshold=threshold,
+                        initial=first == 0,
+                    )
+                    agent_values[name].append(own_values.iloc[1:] if first else own_values)
+            else:
+                model = self._train(
+                    best, train_full, model_kwargs[best], timesteps_dict[best],
+                    f"ensemble_{first}", first,
+                )
             last_state, values, window_actions, window_executions = self.DRL_prediction(
                 model=model, name="ensemble", last_state=last_state,
                 start_index=first, end_index=last, turbulence_threshold=threshold,
@@ -507,13 +567,18 @@ class DRLEnsembleAgent:
                 "Trade End": self.unique_trade_date[last],
                 "Transitions": last - first,
                 "Model Used": best.upper(),
-                "A2C Sharpe": sharpes["a2c"],
-                "PPO Sharpe": sharpes["ppo"],
-                "DDPG Sharpe": sharpes["ddpg"],
+                "A2C Sharpe": sharpes.get("a2c", np.nan),
+                "PPO Sharpe": sharpes.get("ppo", np.nan),
+                "DDPG Sharpe": sharpes.get("ddpg", np.nan),
             })
         logger.info("Ensemble Strategy took %.1f minutes", (time.time() - start) / 60)
         if account_values:
             self.account_value = pd.concat(account_values, ignore_index=True)
             self.actions = pd.concat(actions)
             self.executions = pd.concat(executions, ignore_index=True)
+            if self.standalone_accounts:
+                self.agent_account_values = {
+                    name: pd.concat(frames, ignore_index=True)
+                    for name, frames in agent_values.items()
+                }
         return pd.DataFrame(records)

@@ -150,6 +150,45 @@ python main.py --mode ensemble --timesteps 20000 --rebalance-window 63 --validat
 `ensemble_summary.csv` records validation dates, signal/valuation endpoints and
 transition counts.
 
+Ensemble-specific settings:
+
+- `--ensemble-timesteps a2c=30000 ppo=100000 ddpg=10000` sets the training
+  steps per algorithm; algorithms not listed use `--timesteps`.
+  `TrainConfig.ensemble_model_kwargs` (Python API) replaces the default model
+  settings per algorithm, e.g. `{"ddpg": {"action_noise": {"type":
+  "ornstein_uhlenbeck", "sigma": 0.5}}}`; an `action_noise` given by name alone
+  uses sigma 0.1.
+- `--no-turbulence` turns the liquidation rule off for the ensemble as for the
+  other modes (no turbulence index is computed and none is needed).
+- `--standalone-agents` also trades A2C, PPO and DDPG each with its own
+  account over the same windows: positions carry over, and every window the
+  algorithm is refit on all data before it, exactly as the winner is (the
+  winner's model is shared). The accounts are in `agent_accounts.csv`
+  (`date,ENSEMBLE,A2C,PPO,DDPG`) and in `perf_stats.csv`.
+
+`rl/autotrain/r1.py` (`python -m rl.autotrain.r1 --data-file prices.csv --seed 0`)
+runs the ensemble with the FinRL authors' recipe for the R1 report: indicators
+`macd, rsi_30, cci_30, dx_30`, A2C 30,000 / PPO 100,000 / DDPG 10,000 steps, PPO
+with `ent_coef` 0.005 and 128-step rollouts in minibatches of 16, DDPG with
+Ornstein-Uhlenbeck noise of sigma 0.5 (`--ddpg-noise-sigma`), standalone accounts
+on, prices from a CSV.
+
+### Sharadar prices
+
+`rl/marketdata/sharadar.py` converts a Sharadar SEP extract (columns `ticker,
+date, open, high, low, close, volume, closeadj`) into the CSV above on one
+adjustment basis: `close` becomes `closeadj` and `open`, `high` and `low` are
+scaled by `closeadj / close`. A JSON ticker map renames or stitches series,
+e.g. `{"UTX": "RTX", "DD": [{"ticker": "DD", "end": "2017-08-31"}, {"ticker":
+"DWDP", "start": "2017-09-01"}]}`:
+
+```bash
+python -m rl.marketdata.sharadar SEP.csv datasets/sharadar.csv --tickers AAPL UTX DD \
+    --ticker-map map.json --start-date 2009-01-01 --end-date 2026-01-01
+```
+
+The output is derived from licensed data: keep it out of version control.
+
 ## Options
 
 Run `python main.py --help` for the full list. The most useful ones:
@@ -159,6 +198,8 @@ Run `python main.py --help` for the full list. The most useful ones:
 | `--task` | `trading` | `trading` (buy and sell shares) or `portfolio` (daily portfolio weights) |
 | `--agent` | `sac` | `a2c`, `ppo`, `ddpg`, `td3` or `sac` |
 | `--timesteps` | 80000 | training steps (per model for the ensemble) |
+| `--ensemble-timesteps` | none | ensemble: `AGENT=STEPS` pairs overriding `--timesteps` per algorithm |
+| `--standalone-agents` | off | ensemble: also trade A2C, PPO and DDPG each with its own account |
 | `--data-source` / `--data-file` | `yahoo` | `yahoo`, `csv` or `synthetic` |
 | `--tickers` | Dow 30 | tickers to trade |
 | `--start-date`, `--start-trade-date`, `--end-date` | 2000-01-01, 2019-01-01, 2021-01-01 | training period is `[start, start-trade)`, trading period `[start-trade, end)` |
@@ -190,7 +231,12 @@ Run `python main.py --help` for the full list. The most useful ones:
 
 The agent is always compared with an equal-weight buy-and-hold portfolio and
 an equal-weight portfolio rebalanced monthly, both starting in cash and buying
-at the next open with transaction costs.
+at the next open with transaction costs. The ensemble mode also compares with a
+long-only minimum-variance portfolio (weights from the sample covariance of the
+trailing 252 returns, re-estimated every 63 sessions, filled at the next open),
+computed from the sessions before the trading period; it is left out, with a
+warning, when fewer than 252 sessions precede it
+(`rl.trade.baselines.min_variance_portfolio`).
 
 ## Python API
 

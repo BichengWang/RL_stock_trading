@@ -18,7 +18,10 @@ Each submission lives in ``submissions/<id>/submission.json``::
 ``trials`` counts the configurations evaluated on validation data before
 this one was chosen, including itself; the leaderboard deflates Sharpe
 ratios by it. Frozen live-track state is stored under
-``submissions/<id>/frozen/<task>/``.
+``submissions/<id>/frozen/<task>/``. ``ledger`` (optional) lists the task ids
+on which the submission commits a decision before every session open
+(:mod:`rl.bench.ledger`); entries are stored under
+``submissions/<id>/ledger/<task>/``.
 """
 
 from __future__ import annotations
@@ -48,6 +51,7 @@ class Submission:
     authors: tuple[str, ...] = ()
     url: str = ""
     description: str = ""
+    ledger: tuple[str, ...] = ()
     directory: Path | None = None
 
     def __post_init__(self):
@@ -60,15 +64,21 @@ class Submission:
         if not isinstance(self.trials, int) or self.trials < 1:
             raise ValueError("trials must be a positive integer")
         json.dumps(self.params)  # parameters must round-trip through JSON
+        if isinstance(self.ledger, str) or not all(isinstance(t, str) and t for t in self.ledger):
+            raise ValueError("ledger must be a list of task ids")
+        if len(set(self.ledger)) != len(self.ledger):
+            raise ValueError("ledger task ids must be unique")
 
     @classmethod
     def load(cls, directory) -> Submission:
         directory = Path(directory)
         spec = json.loads((directory / "submission.json").read_text())
-        unknown = set(spec) - {"name", "kind", "policy", "params", "trials", "authors", "url", "description"}
+        allowed = {"name", "kind", "policy", "params", "trials", "authors", "url", "description", "ledger"}
+        unknown = set(spec) - allowed
         if unknown:
             raise ValueError("Unknown submission fields {} in {}".format(sorted(unknown), directory))
         spec["authors"] = tuple(spec.get("authors", ()))
+        spec["ledger"] = tuple(spec.get("ledger", ()))
         return cls(id=directory.name, directory=directory, **spec)
 
     def policy_class(self) -> type[Policy]:
@@ -97,6 +107,11 @@ class Submission:
         if self.directory is None:
             raise ValueError("Submission {} has no directory".format(self.id))
         return self.directory / "frozen" / task_id
+
+    def ledger_dir(self, task_id: str) -> Path:
+        if self.directory is None:
+            raise ValueError("Submission {} has no directory".format(self.id))
+        return self.directory / "ledger" / task_id
 
 
 def discover(root=SUBMISSIONS_DIR) -> dict[str, Submission]:

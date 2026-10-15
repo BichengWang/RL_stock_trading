@@ -207,6 +207,7 @@ def evaluate(
     out_root=LEADERBOARD_DIR,
 ) -> Path:
     """Historical track: fit before ``task.test_start``, trade the test window."""
+    _require_replayable(submission)
     data = _data_for(task, data, end=task.test_end).between(None, task.test_end)
     start = data.index_of(task.test_start)
     history = data.rows(0, start)
@@ -237,6 +238,7 @@ def freeze(
 ) -> Path:
     """Live track: fit on all available sessions and store the frozen policy."""
     _require_live(task)
+    _require_replayable(submission)
     directory = submission.frozen_dir(task.id)
     marker = directory / FREEZE_FILE
     if marker.exists() and not force:
@@ -278,6 +280,18 @@ def freeze(
 def _require_live(task: Task) -> None:
     if not task.live:
         raise ValueError("Task {} has no live track".format(task.id))
+
+
+def _require_replayable(submission: Submission) -> None:
+    """Ledger participants (e.g. LLM agents) are scored only from decisions
+    committed before each open: replaying them on past data would pay for
+    calls on a period their models may remember."""
+    if submission.ledger:
+        raise ValueError(
+            "{} takes part only through the decision ledger (tasks: {})".format(
+                submission.id, ", ".join(submission.ledger)
+            )
+        )
 
 
 def _artifact_hashes(directory: Path) -> dict[str, str]:

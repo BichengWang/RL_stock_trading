@@ -17,8 +17,9 @@ All metrics are recomputed from the equity curves stored in the records
   of a per-period Sharpe over ``n`` sessions under i.i.d. returns, which a
   handful of near-identical strategies can undercut by chance), ``1/n`` is used.
 
-Live results are grouped by freeze date so every table covers the same
-post-freeze window. Tasks are ordered ranked first, then re-evaluations
+Live results are grouped by freeze date and ledger results by the date of the
+first verified decision, so every table covers the same window. Tasks are
+ordered ranked first, then re-evaluations
 (``paper-2021``: a survivorship-biased universe, shown for comparison with a
 published setup, not as a ranking), then the synthetic demo.
 """
@@ -38,7 +39,21 @@ from rl.bench.tasks import TASKS
 
 log = logging.getLogger(__name__)
 
-TRACKS = ("historical", "live")
+TRACKS = ("historical", "live", "ledger")
+_TRACK_INTRO = {
+    "historical": ("## Historical track", "Fixed public split: fit before the test window, then trade it."),
+    "live": (
+        "## Live track",
+        "Policies frozen at the date shown and scored on the sessions after it; "
+        "they cannot have been tuned on the results.",
+    ),
+    "ledger": (
+        "## Ledger track: decisions committed before each open",
+        "Each decision is committed to the repository by a scheduled workflow before the session it "
+        "trades opens; entries whose workflow run cannot be verified, and sessions without an entry, "
+        "count as holds.",
+    ),
+}
 README_START = "<!-- leaderboard:start -->"
 README_END = "<!-- leaderboard:end -->"
 HEADLINE_ROWS = 3
@@ -154,7 +169,7 @@ def _sections(records: list[dict]) -> list[dict]:
             TRACKS.index(record["track"]) if record["track"] in TRACKS else len(TRACKS),
             _ROLE_ORDER[_role(record["task"])],
             record["task"],
-            record["dates"][0] if record["track"] == "live" else "",
+            record["dates"][0] if record["track"] in ("live", "ledger") else "",
         )
         groups.setdefault(key, []).append(record)
 
@@ -195,6 +210,7 @@ def _sections(records: list[dict]) -> list[dict]:
                 "universe": latest["data"].get("tickers") or (list(task.tickers) if task else []),
                 "frozen_through": latest["fit"]["history_end"] if latest["track"] == "live" else None,
                 "frozen_at": latest["fit"].get("frozen_at"),
+                "decisions_from": latest["dates"][0] if latest["track"] == "ledger" else None,
                 "sharpe_variance": variance,
                 "rows": rows,
             }
@@ -273,6 +289,8 @@ def _heading(section: dict) -> str:
         title = "Demo: " + title
     if section["track"] == "live":
         title = "{} (frozen {})".format(title, section["frozen_through"])
+    elif section["track"] == "ledger":
+        title = "{} (decisions from {})".format(title, section["decisions_from"])
     return title
 
 
@@ -293,17 +311,8 @@ def render_markdown(summary: dict, link_prefix: str | None = "../submissions") -
         chosen = [s for s in sections if s["track"] == track]
         if not chosen:
             continue
-        lines += [
-            "## Historical track" if track == "historical" else "## Live track",
-            "",
-            (
-                "Fixed public split: fit before the test window, then trade it."
-                if track == "historical"
-                else "Policies frozen at the date shown and scored on the sessions after it; "
-                "they cannot have been tuned on the results."
-            ),
-            "",
-        ]
+        heading, intro = _TRACK_INTRO[track]
+        lines += [heading, "", intro, ""]
         for section in chosen:
             lines += [
                 "### {} — `{}`".format(_heading(section), section["task"]),

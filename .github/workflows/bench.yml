@@ -28,10 +28,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: Reject edits to bot-owned results
-        # Publication times and live records are written only by this workflow on main.
+        # Publication times, live and ledger records, monthly reports and ledger
+        # entries are written only by workflows on main.
         run: |
-          if git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" | grep -E '^leaderboard/(publications\.json|live/)'; then
-            echo "::error::leaderboard/publications.json and leaderboard/live/ are written by CI only"
+          if git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" | grep -E '^leaderboard/(publications\.json|live/|ledger/|reports/)|^submissions/[^/]+/ledger/'; then
+            echo "::error::these paths are written by CI only"
             exit 1
           fi
       - uses: actions/setup-python@v5
@@ -103,6 +104,7 @@ jobs:
     timeout-minutes: 350
     permissions:
       contents: write
+      actions: read  # ledger verification reads workflow runs
     concurrency:
       group: bench-write
       cancel-in-progress: false
@@ -125,13 +127,21 @@ jobs:
           pip install -e ".[test]"
       - name: Score frozen policies on new sessions
         run: rl-pricing bench live --refresh
-      - name: Render leaderboard
-        run: rl-pricing bench leaderboard
+      - name: Score ledger decisions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: rl-pricing bench ledger score
+      - name: Monthly report
+        run: rl-pricing bench monthly
+      - name: Render leaderboard and verdicts
+        run: |
+          rl-pricing bench leaderboard
+          rl-pricing bench reports
       - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add leaderboard README.md
+          git add leaderboard reports README.md
           if git diff --cached --quiet; then
             echo "No changes"
           else

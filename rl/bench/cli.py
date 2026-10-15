@@ -7,7 +7,7 @@ import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 
-from rl.bench import leaderboard, runner
+from rl.bench import ledger, leaderboard, monthly, runner, sweep, verdicts
 from rl.bench.submission import SUBMISSIONS_DIR, Submission, discover
 from rl.bench.tasks import TASKS, get_task
 
@@ -69,6 +69,12 @@ def build_parser() -> ArgumentParser:
     board.add_argument("--no-readme", action="store_true")
 
     commands.add_parser("validate", parents=[common], help="check that every submission builds on every task")
+
+    # Commands that register themselves and carry their handler.
+    ledger.add_cli(commands, common)
+    monthly.add_cli(commands, common)
+    sweep.add_cli(commands, common)
+    verdicts.add_cli(commands, common)
     return parser
 
 
@@ -137,7 +143,7 @@ def _cmd_run_all(options) -> int:
     data = load_task_data(task, end=task.test_end)
     failures = []
     for submission in discover(options.submissions_root).values():
-        if options.kind and submission.kind != options.kind:
+        if (options.kind and submission.kind != options.kind) or submission.ledger:
             continue
         try:
             path = runner.evaluate(
@@ -169,7 +175,7 @@ def _cmd_freeze(options) -> int:
     submissions = (
         [_submission(options.submissions_root, options.submission)]
         if options.submission
-        else list(discover(options.submissions_root).values())
+        else [s for s in discover(options.submissions_root).values() if not s.ledger]
     )
     failures = []
     for task in tasks:
@@ -262,4 +268,5 @@ def main(argv=None) -> int:
     """Run a bench subcommand; returns the process exit code."""
     options = build_parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    return _COMMANDS[options.command](options)
+    handler = getattr(options, "handler", None)
+    return handler(options) if handler is not None else _COMMANDS[options.command](options)

@@ -201,6 +201,24 @@ def test_refreeze_needs_force_and_changed_params_are_rejected(tilt, data, tmp_pa
         runner.update_live(LIVE, changed, data=data, out_root=tmp_path / "board")
 
 
+def test_ledger_participants_are_never_replayed_on_past_data(tilt, data, tmp_path, capsys):
+    ledger_only = Submission(**{**tilt.__dict__, "ledger": ("synthetic",)})
+    with pytest.raises(ValueError, match="decision ledger"):
+        runner.evaluate(TASK, ledger_only, data=data, out_root=tmp_path / "board")
+    with pytest.raises(ValueError, match="decision ledger"):
+        runner.freeze(LIVE, ledger_only, data=data)
+
+    root = tmp_path / "subs"
+    make_submission(root, "conc", "test_bench_runner:Concentrated")
+    directory = root / "agent"
+    directory.mkdir()
+    spec = {"name": "Agent", "kind": "llm", "policy": "test_bench_runner:Concentrated", "ledger": ["synthetic"]}
+    (directory / "submission.json").write_text(json.dumps(spec))
+    argv = ["--submissions-root", str(root), "--out-root", str(tmp_path / "out")]
+    assert cli.main(["bench", "run-all", "--task", "synthetic", *argv]) == 0
+    assert sorted(p.stem for p in (tmp_path / "out" / "historical" / "synthetic").glob("*.json")) == ["conc"]
+
+
 def test_tasks_without_a_live_track_cannot_be_frozen(tilt, data):
     assert not TASK.live
     with pytest.raises(ValueError, match="no live track"):

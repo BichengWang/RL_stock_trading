@@ -1,0 +1,122 @@
+[
+  {
+    "id": "ddpg-annual-return",
+    "quote": "DDPG attains the highest annual return (55.51%)",
+    "source": "Table 4 and Section 5.2 (p. 6); abstract: 55.5% (p. 1)",
+    "metric": "annual_return",
+    "claimed": 0.5551,
+    "ours": 0.2458,
+    "ci95": [
+      0.1731,
+      0.3185
+    ],
+    "level": "L2",
+    "verdict": "does-not-hold",
+    "note": "Share env + rule, 5 seeds: mean 24.6% (sd 5.9%), best seed 30.4%; 1/N annual return 29.7%. No rule: mean 30.6%, best 40.5%. Benchmark task: mean 16.2%, best 25.0%. No seed of any setup reaches the claimed value. Verdict by setup: rule ✗, no rule ✗, benchmark ✗."
+  },
+  {
+    "id": "ddpg-sharpe",
+    "quote": "DDPG attains the highest annual return (55.51%), cumulative return (142.26%), Sharpe ratio (1.38)",
+    "source": "Table 4 and Section 5.2 (p. 6); abstract (p. 1)",
+    "metric": "sharpe",
+    "claimed": 1.38,
+    "ours": 1.161,
+    "ci95": [
+      0.9301,
+      1.3919
+    ],
+    "level": "L2",
+    "verdict": "partly",
+    "note": "Share env + rule, 5 seeds: mean 1.16 (sd 0.19), best seed 1.43; 1/N Sharpe 1.10. No rule: mean 1.06, best 1.24. Benchmark task: mean 0.70, best 0.97. Seed-averaged returns against 1/N, ΔSharpe (one-sided bootstrap p): rule +0.12 (p = 0.320), no rule +0.00 (p = 0.496), benchmark -0.40 (p = 0.985). Verdict by setup: rule ◐, no rule ✗, benchmark ✗."
+  },
+  {
+    "id": "td3-sharpe",
+    "quote": "TD3 and SAC offer a better balance between return and risk, with Sharpe ratios of 1.37 and 1.33",
+    "source": "Table 4 and Section 5.2 (p. 6)",
+    "metric": "sharpe",
+    "claimed": 1.37,
+    "ours": 1.1028,
+    "ci95": [
+      0.6867,
+      1.5188
+    ],
+    "level": "L2",
+    "verdict": "partly",
+    "note": "Share env + rule, 5 seeds: mean 1.10 (sd 0.34), best seed 1.37; 1/N Sharpe 1.10. No rule: mean 1.00, best 1.37. Benchmark task: mean 0.70, best 1.01. Seed-averaged returns against 1/N, ΔSharpe (one-sided bootstrap p): rule +0.09 (p = 0.328), no rule -0.04 (p = 0.654), benchmark -0.40 (p = 0.977). Verdict by setup: rule ◐, no rule ◐, benchmark ✗."
+  },
+  {
+    "id": "sac-sharpe",
+    "quote": "TD3 and SAC offer a better balance between return and risk, with Sharpe ratios of 1.37 and 1.33",
+    "source": "Table 4 and Section 5.2 (p. 6)",
+    "metric": "sharpe",
+    "claimed": 1.33,
+    "ours": 1.2327,
+    "ci95": [
+      1.0722,
+      1.3932
+    ],
+    "level": "L2",
+    "verdict": "partly",
+    "note": "Share env + rule, 5 seeds: mean 1.23 (sd 0.13), best seed 1.42; 1/N Sharpe 1.10. No rule: mean 1.23, best 1.49. Benchmark task: mean 0.66, best 0.82. Seed-averaged returns against 1/N, ΔSharpe (one-sided bootstrap p): rule +0.22 (p = 0.218), no rule +0.22 (p = 0.133), benchmark -0.43 (p = 0.998). Verdict by setup: rule ◐, no rule ◐, benchmark ✗."
+  },
+  {
+    "id": "ppo-sharpe",
+    "quote": "PPO 27.89% 63.71% 1.09 −25.33% 0.05 0.91",
+    "source": "Table 4, PPO row (p. 6): Sharpe ratio 1.09",
+    "metric": "sharpe",
+    "claimed": 1.09,
+    "ours": 1.1692,
+    "ci95": [
+      0.9028,
+      1.4356
+    ],
+    "level": "L2",
+    "verdict": "partly",
+    "note": "Share env + rule, 5 seeds: mean 1.17 (sd 0.21), best seed 1.32; 1/N Sharpe 1.10. No rule: mean 0.95, best 1.21. Benchmark task: mean 0.98, best 1.02. Seed-averaged returns against 1/N, ΔSharpe (one-sided bootstrap p): rule +0.15 (p = 0.339), no rule -0.11 (p = 0.713), benchmark -0.13 (p = 0.898). Verdict by setup: rule ◐, no rule ◐, benchmark ✗."
+  },
+  {
+    "id": "a2c-sharpe",
+    "quote": "A2C 20.47% 45.23% 0.82 −31.11% −0.03 1.02",
+    "source": "Table 4, A2C row (p. 6): Sharpe ratio 0.82",
+    "metric": "sharpe",
+    "claimed": 0.82,
+    "ours": 1.0934,
+    "ci95": [
+      0.9122,
+      1.2746
+    ],
+    "level": "L2",
+    "verdict": "partly",
+    "note": "Share env + rule, 5 seeds: mean 1.09 (sd 0.15), best seed 1.27; 1/N Sharpe 1.10. No rule: mean 0.97, best 1.16. Benchmark task: mean 1.03, best 1.05. Seed-averaged returns against 1/N, ΔSharpe (one-sided bootstrap p): rule +0.04 (p = 0.398), no rule -0.11 (p = 0.792), benchmark -0.08 (p = 0.825). Verdict by setup: rule ◐, no rule ◐, benchmark ◐."
+  },
+  {
+    "id": "lstm-max-drawdown",
+    "quote": "its Sharpe ratio of 1.19 lies in the middle of the range, and it has the smallest maximum drawdown (−9.57%)",
+    "source": "Table 4 and Section 5.2 (p. 6); abstract: −9.6% (p. 1)",
+    "metric": "max_drawdown",
+    "claimed": -0.0957,
+    "ours": -0.2654,
+    "ci95": [
+      -0.2937,
+      -0.2372
+    ],
+    "level": "L2",
+    "verdict": "inconclusive",
+    "note": "Benchmark task `paper-2021`, submission `lstm-forecast`, 5 seeds: mean -26.5% (sd 2.3%), best seed -23.8%; that submission forecasts next-session returns and holds the assets expected to rise, not the paper's price-forecast pipeline, and the authors' LSTM code was not run (see report, Deviations). The test cannot confirm or refute the paper's LSTM numbers; deciding it needs a run of the paper's LSTM pipeline (rl/forecast/lstm.py) under this engine."
+  },
+  {
+    "id": "lstm-sharpe",
+    "quote": "its Sharpe ratio of 1.19 lies in the middle of the range",
+    "source": "Table 4 and Section 5.2 (p. 6)",
+    "metric": "sharpe",
+    "claimed": 1.19,
+    "ours": 0.7538,
+    "ci95": [
+      0.3902,
+      1.1175
+    ],
+    "level": "L2",
+    "verdict": "inconclusive",
+    "note": "Benchmark task `paper-2021`, submission `lstm-forecast`, 5 seeds: mean 0.75 (sd 0.29), best seed 1.08; that submission forecasts next-session returns and holds the assets expected to rise, not the paper's price-forecast pipeline, and the authors' LSTM code was not run (see report, Deviations). The test cannot confirm or refute the paper's LSTM numbers; deciding it needs a run of the paper's LSTM pipeline (rl/forecast/lstm.py) under this engine."
+  }
+]

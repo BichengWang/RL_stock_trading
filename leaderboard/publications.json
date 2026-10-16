@@ -107,6 +107,18 @@
     "published_at": "2026-10-14T17:10:18+00:00",
     "freeze_sha256": "0a116b3df64aa1435192f2cdd7d7820777a71d88ab96685a9768d315b0ccda1d"
   },
+  "ppo-tuned/crypto-majors": {
+    "published_at": "2026-10-16T01:02:28+00:00",
+    "freeze_sha256": "eb52299527231f91aa675cff3e9bf10bfeb501a483c3c30ef5274d35aac10c63"
+  },
+  "ppo-tuned/us-multi-asset": {
+    "published_at": "2026-10-16T01:02:28+00:00",
+    "freeze_sha256": "3d399de18f8e9a152275ed9388461177fe014c6f9a533fa60990c3c1ad2c2bdf"
+  },
+  "ppo-tuned/us-sectors": {
+    "published_at": "2026-10-16T01:02:28+00:00",
+    "freeze_sha256": "d6ed7078cb41716276cc8a80b235552537903990dd211167b71cca23743aae96"
+  },
   "ppo/crypto-majors": {
     "published_at": "2026-10-14T17:10:18+00:00",
     "freeze_sha256": "3ade7aac435ebd33b90908ed5b46fa37d5adc078dc6494d9b2e053b82f3b24a5"
@@ -118,6 +130,18 @@
   "ppo/us-sectors": {
     "published_at": "2026-10-14T17:10:18+00:00",
     "freeze_sha256": "7a0c456ed4e6edd0873597301e510ab456b4699fb2b3f992372808f7817d800b"
+  },
+  "sac-tuned/crypto-majors": {
+    "published_at": "2026-10-16T01:02:28+00:00",
+    "freeze_sha256": "49e461277da41c42dce0ad3868ada2f421173da2fb6956f66e8d5dcaacae3612"
+  },
+  "sac-tuned/us-multi-asset": {
+    "published_at": "2026-10-16T01:02:28+00:00",
+    "freeze_sha256": "b9b63e94dcb0ea59e19552a1656c517ae8609fe8a5919a86836880a791856acd"
+  },
+  "sac-tuned/us-sectors": {
+    "published_at": "2026-10-16T01:02:28+00:00",
+    "freeze_sha256": "362896267157b6958fc2c0d29dee0ba010687ceb9a1129ffa3bc982b3ab295b5"
   },
   "sac/crypto-majors": {
     "published_at": "2026-10-14T17:10:18+00:00",

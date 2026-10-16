@@ -17,14 +17,16 @@ Fixed public split: fit before the test window, then trade it.
 | 3 | [Momentum (top 3)](../submissions/momentum/) | baseline | 0.84 | 37.8% | -47.9% | 5.3× | 0.89 | 7.8% (t=0.6) | +0.06 (p=0.401) | 0.93 | 1 |
 | 4 | **1/N buy and hold** ◆ | baseline | 0.78 | 32.7% | -44.5% | 0.3× | 1.00 | 0.0% | – | 0.91 | – |
 | 5 | [1/N monthly rebalance](../submissions/equal-weight-monthly/) | baseline | 0.72 | 28.4% | -51.7% | 1.5× | 1.03 | -3.0% (t=-0.6) | -0.06 (p=0.753) | 0.89 | 1 |
-| 6 | [A2C](../submissions/a2c/) | rl | 0.70 ± 0.03 | 26.4% | -45.6% | 15.9× | 0.91 | -3.3% (t=-0.7) | -0.07 (p=0.822) | 0.89 | 5 |
-| 7 | [TD3](../submissions/td3/) | rl | 0.66 ± 0.25 | 25.1% | -54.4% | 216.5× | 0.89 | -2.1% (t=-0.2) | -0.08 (p=0.657) | 0.89 | 5 |
-| 8 | [PPO](../submissions/ppo/) | rl | 0.66 ± 0.06 | 23.6% | -54.1% | 145.5× | 0.91 | -4.3% (t=-0.6) | -0.10 (p=0.778) | 0.88 | 5 |
-| 9 | [DDPG](../submissions/ddpg/) | rl | 0.53 ± 0.17 | 14.6% | -53.8% | 214.7× | 0.85 | -9.9% (t=-0.8) | -0.22 (p=0.920) | 0.83 | 5 |
-| 10 | [SAC](../submissions/sac/) | rl | 0.44 ± 0.20 | 10.0% | -59.1% | 326.4× | 0.84 | -11.6% (t=-0.7) | -0.27 (p=0.899) | 0.81 | 5 |
-| 11 | [Trend following (200d SMA)](../submissions/trend-following/) | baseline | 0.10 | -4.7% | -50.6% | 3.3× | 0.61 | -23.6% (t=-1.9) | -0.68 (p=0.971) | 0.57 | 1 |
-| 12 | [LSTM forecast](../submissions/lstm-forecast/) | forecast | -0.32 ± 0.25 | -26.6% | -73.3% | 246.7× | 0.58 | -44.1% (t=-1.9) | -1.13 (p=0.996) | 0.27 | 5 |
-| 13 | [Cash](../submissions/cash/) | baseline | – | 0.0% | 0.0% | 0.0× | 0.00 | 0.0% | – | – | 1 |
+| 6 | [PPO (tuned)](../submissions/ppo-tuned/) | rl | 0.71 ± 0.22 | 26.9% | -49.3% | 146.1× | 0.83 | -0.5% (t=-0.2) | -0.04 (p=0.621) | 0.43 | 5 |
+| 7 | [A2C](../submissions/a2c/) | rl | 0.70 ± 0.03 | 26.4% | -45.6% | 15.9× | 0.91 | -3.3% (t=-0.7) | -0.07 (p=0.822) | 0.89 | 5 |
+| 8 | [TD3](../submissions/td3/) | rl | 0.66 ± 0.25 | 25.1% | -54.4% | 216.5× | 0.89 | -2.1% (t=-0.2) | -0.08 (p=0.657) | 0.89 | 5 |
+| 9 | [PPO](../submissions/ppo/) | rl | 0.66 ± 0.06 | 23.6% | -54.1% | 145.5× | 0.91 | -4.3% (t=-0.6) | -0.10 (p=0.778) | 0.88 | 5 |
+| 10 | [DDPG](../submissions/ddpg/) | rl | 0.53 ± 0.17 | 14.6% | -53.8% | 214.7× | 0.85 | -9.9% (t=-0.8) | -0.22 (p=0.920) | 0.83 | 5 |
+| 11 | [SAC](../submissions/sac/) | rl | 0.44 ± 0.20 | 10.0% | -59.1% | 326.4× | 0.84 | -11.6% (t=-0.7) | -0.27 (p=0.899) | 0.81 | 5 |
+| 12 | [Trend following (200d SMA)](../submissions/trend-following/) | baseline | 0.10 | -4.7% | -50.6% | 3.3× | 0.61 | -23.6% (t=-1.9) | -0.68 (p=0.971) | 0.57 | 1 |
+| 13 | [SAC (tuned)](../submissions/sac-tuned/) | rl | 0.07 ± 0.49 | -9.6% | -67.6% | 322.8× | 0.80 | -33.5% (t=-1.8) | -0.72 (p=1.000) | 0.09 | 5 |
+| 14 | [LSTM forecast](../submissions/lstm-forecast/) | forecast | -0.32 ± 0.25 | -26.6% | -73.3% | 246.7× | 0.58 | -44.1% (t=-1.9) | -1.13 (p=0.996) | 0.27 | 5 |
+| 15 | [Cash](../submissions/cash/) | baseline | – | 0.0% | 0.0% | 0.0× | 0.00 | 0.0% | – | – | 1 |
 
 ### US multi-asset allocation — `us-multi-asset`
 
@@ -39,12 +41,14 @@ Fixed public split: fit before the test window, then trade it.
 | 5 | [Inverse volatility](../submissions/inverse-volatility/) | baseline | 0.66 | 6.0% | -24.2% | 1.1× | 0.72 | -0.4% (t=-0.4) | -0.07 (p=0.777) | 0.97 | 1 |
 | 6 | [LSTM forecast](../submissions/lstm-forecast/) | forecast | 0.60 ± 0.08 | 8.4% | -30.7% | 34.9× | 1.09 | -1.0% (t=-0.6) | -0.10 (p=0.868) | 0.96 | 5 |
 | 7 | [PPO](../submissions/ppo/) | rl | 0.60 ± 0.01 | 6.5% | -24.2% | 24.1× | 0.89 | -1.3% (t=-2.3) | -0.12 (p=0.999) | 0.95 | 5 |
-| 8 | [Trend following (200d SMA)](../submissions/trend-following/) | baseline | 0.57 | 4.2% | -15.6% | 2.4× | 0.49 | -0.1% (t=-0.1) | -0.16 (p=0.774) | 0.94 | 1 |
-| 9 | [Minimum variance](../submissions/minimum-variance/) | baseline | 0.54 | 3.3% | -21.4% | 1.0× | 0.34 | 0.3% (t=0.2) | -0.19 (p=0.771) | 0.93 | 1 |
-| 10 | [SAC](../submissions/sac/) | rl | 0.52 ± 0.15 | 5.5% | -27.2% | 45.9× | 0.88 | -2.1% (t=-2.1) | -0.20 (p=1.000) | 0.93 | 5 |
-| 11 | [TD3](../submissions/td3/) | rl | 0.27 ± 0.06 | 2.8% | -30.2% | 148.9× | 0.89 | -4.6% (t=-2.0) | -0.43 (p=1.000) | 0.80 | 5 |
-| 12 | [DDPG](../submissions/ddpg/) | rl | 0.21 ± 0.19 | 2.0% | -32.1% | 155.4× | 0.92 | -5.6% (t=-2.8) | -0.50 (p=1.000) | 0.74 | 5 |
-| 13 | [Cash](../submissions/cash/) | baseline | – | 0.0% | 0.0% | 0.0× | 0.00 | 0.0% | – | – | 1 |
+| 8 | [SAC (tuned)](../submissions/sac-tuned/) | rl | 0.58 ± 0.06 | 6.3% | -25.2% | 22.7× | 0.88 | -1.4% (t=-1.9) | -0.14 (p=0.995) | 0.58 | 5 |
+| 9 | [PPO (tuned)](../submissions/ppo-tuned/) | rl | 0.58 ± 0.01 | 6.1% | -24.4% | 23.6× | 0.88 | -1.6% (t=-2.9) | -0.15 (p=1.000) | 0.57 | 5 |
+| 10 | [Trend following (200d SMA)](../submissions/trend-following/) | baseline | 0.57 | 4.2% | -15.6% | 2.4× | 0.49 | -0.1% (t=-0.1) | -0.16 (p=0.774) | 0.94 | 1 |
+| 11 | [Minimum variance](../submissions/minimum-variance/) | baseline | 0.54 | 3.3% | -21.4% | 1.0× | 0.34 | 0.3% (t=0.2) | -0.19 (p=0.771) | 0.93 | 1 |
+| 12 | [SAC](../submissions/sac/) | rl | 0.52 ± 0.15 | 5.5% | -27.2% | 45.9× | 0.88 | -2.1% (t=-2.1) | -0.20 (p=1.000) | 0.93 | 5 |
+| 13 | [TD3](../submissions/td3/) | rl | 0.27 ± 0.06 | 2.8% | -30.2% | 148.9× | 0.89 | -4.6% (t=-2.0) | -0.43 (p=1.000) | 0.80 | 5 |
+| 14 | [DDPG](../submissions/ddpg/) | rl | 0.21 ± 0.19 | 2.0% | -32.1% | 155.4× | 0.92 | -5.6% (t=-2.8) | -0.50 (p=1.000) | 0.74 | 5 |
+| 15 | [Cash](../submissions/cash/) | baseline | – | 0.0% | 0.0% | 0.0× | 0.00 | 0.0% | – | – | 1 |
 
 ### US sector rotation — `us-sectors`
 
@@ -57,14 +61,16 @@ Fixed public split: fit before the test window, then trade it.
 | 3 | [A2C](../submissions/a2c/) | rl | 0.67 ± 0.01 | 10.3% | -34.3% | 10.0× | 0.91 | -0.2% (t=-0.3) | -0.01 (p=0.650) | 0.97 | 5 |
 | 4 | [Inverse volatility](../submissions/inverse-volatility/) | baseline | 0.67 | 10.8% | -35.7% | 0.8× | 0.96 | -0.2% (t=-0.3) | -0.02 (p=0.664) | 0.97 | 1 |
 | 5 | [Momentum (top 3)](../submissions/momentum/) | baseline | 0.67 | 11.7% | -31.6% | 5.7× | 0.97 | 0.8% (t=0.3) | -0.02 (p=0.522) | 0.97 | 1 |
-| 6 | [PPO](../submissions/ppo/) | rl | 0.61 ± 0.06 | 9.1% | -33.7% | 28.8× | 0.90 | -1.2% (t=-1.5) | -0.08 (p=0.979) | 0.95 | 5 |
-| 7 | [LSTM forecast](../submissions/lstm-forecast/) | forecast | 0.60 ± 0.04 | 9.8% | -38.9% | 41.2× | 0.95 | -0.9% (t=-0.5) | -0.07 (p=0.827) | 0.96 | 5 |
-| 8 | [Trend following (200d SMA)](../submissions/trend-following/) | baseline | 0.59 | 6.0% | -17.4% | 2.5× | 0.51 | -0.0% (t=-0.0) | -0.10 (p=0.695) | 0.95 | 1 |
-| 9 | [Minimum variance](../submissions/minimum-variance/) | baseline | 0.55 | 7.7% | -32.9% | 1.6× | 0.76 | -1.0% (t=-0.4) | -0.13 (p=0.820) | 0.94 | 1 |
-| 10 | [SAC](../submissions/sac/) | rl | 0.52 ± 0.12 | 7.8% | -33.2% | 74.3× | 0.90 | -2.3% (t=-1.3) | -0.15 (p=0.987) | 0.93 | 5 |
-| 11 | [DDPG](../submissions/ddpg/) | rl | 0.31 ± 0.14 | 4.2% | -39.5% | 134.6× | 0.97 | -6.2% (t=-2.7) | -0.36 (p=1.000) | 0.82 | 5 |
-| 12 | [TD3](../submissions/td3/) | rl | 0.31 ± 0.16 | 4.0% | -40.4% | 120.9× | 0.94 | -6.2% (t=-2.7) | -0.37 (p=1.000) | 0.81 | 5 |
-| 13 | [Cash](../submissions/cash/) | baseline | – | 0.0% | 0.0% | 0.0× | 0.00 | 0.0% | – | – | 1 |
+| 6 | [SAC (tuned)](../submissions/sac-tuned/) | rl | 0.65 ± 0.03 | 9.8% | -33.6% | 15.0× | 0.89 | -0.5% (t=-0.7) | -0.04 (p=0.823) | 0.64 | 5 |
+| 7 | [PPO (tuned)](../submissions/ppo-tuned/) | rl | 0.62 ± 0.03 | 9.3% | -34.2% | 28.1× | 0.90 | -1.0% (t=-1.4) | -0.07 (p=0.958) | 0.61 | 5 |
+| 8 | [PPO](../submissions/ppo/) | rl | 0.61 ± 0.06 | 9.1% | -33.7% | 28.8× | 0.90 | -1.2% (t=-1.5) | -0.08 (p=0.979) | 0.95 | 5 |
+| 9 | [LSTM forecast](../submissions/lstm-forecast/) | forecast | 0.60 ± 0.04 | 9.8% | -38.9% | 41.2× | 0.95 | -0.9% (t=-0.5) | -0.07 (p=0.827) | 0.96 | 5 |
+| 10 | [Trend following (200d SMA)](../submissions/trend-following/) | baseline | 0.59 | 6.0% | -17.4% | 2.5× | 0.51 | -0.0% (t=-0.0) | -0.10 (p=0.695) | 0.95 | 1 |
+| 11 | [Minimum variance](../submissions/minimum-variance/) | baseline | 0.55 | 7.7% | -32.9% | 1.6× | 0.76 | -1.0% (t=-0.4) | -0.13 (p=0.820) | 0.94 | 1 |
+| 12 | [SAC](../submissions/sac/) | rl | 0.52 ± 0.12 | 7.8% | -33.2% | 74.3× | 0.90 | -2.3% (t=-1.3) | -0.15 (p=0.987) | 0.93 | 5 |
+| 13 | [DDPG](../submissions/ddpg/) | rl | 0.31 ± 0.14 | 4.2% | -39.5% | 134.6× | 0.97 | -6.2% (t=-2.7) | -0.36 (p=1.000) | 0.82 | 5 |
+| 14 | [TD3](../submissions/td3/) | rl | 0.31 ± 0.16 | 4.0% | -40.4% | 120.9× | 0.94 | -6.2% (t=-2.7) | -0.37 (p=1.000) | 0.81 | 5 |
+| 15 | [Cash](../submissions/cash/) | baseline | – | 0.0% | 0.0% | 0.0× | 0.00 | 0.0% | – | – | 1 |
 
 ### Re-evaluation: Wang & Zhang (2021) setup — `paper-2021`
 

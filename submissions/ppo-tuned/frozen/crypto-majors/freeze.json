@@ -1,0 +1,34 @@
+{
+  "task": "crypto-majors",
+  "submission": "ppo-tuned",
+  "policy": "rl.bench.policies.sb3:SB3Policy",
+  "params": {
+    "algo": "ppo",
+    "timesteps": 200000,
+    "episode_length": 63,
+    "net_arch": [
+      64,
+      64
+    ],
+    "learning_rate": 0.0003,
+    "gamma": 0.95
+  },
+  "fitted_through": "2026-10-14",
+  "validation_start": "2025-10-14",
+  "frozen_at": "2026-10-15T03:31:32+00:00",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "data_sha256": "1b3ca266d814e3ddc6633650c494244ca12ce17c358139e5091fd96cb7072754",
+  "commit": "4c09f9cfa20c64b82b0d680dd3586147457de9ea",
+  "artifacts": {
+    "seed0/actor.npz": "c94eb27bbb6457c23306e7fbacd0cc4bdf01a627a7706a4e465c70e2c3ed2b10",
+    "seed0/meta.json": "8996e680ce27637a37c62ab9eb25d0db1c32088d3df40965758567c5b5d36faa",
+    "seed1/actor.npz": "2e436133ed7d559edff0d834026e9f166f32c6ca8f880041b6585cd6398d9bb0",
+    "seed1/meta.json": "55710fb3b6dd00b746e1fdeed988965c1e5d9d6fa5d3087615220ed48b945f55",
+    "seed2/actor.npz": "9fe2227bbcda5e62250e85067fefd3e239e35ffda88ce1dd0b840ad32f9004af",
+    "seed2/meta.json": "450f2c43af10a94c343ea9f0d5962017e53256ce726ee9145d3aaa3e387d6bed"
+  }
+}

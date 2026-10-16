@@ -4,7 +4,12 @@ import datetime
 import logging
 import os
 import sys
-from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
+from argparse import (
+    Action,
+    ArgumentDefaultsHelpFormatter,
+    ArgumentParser,
+    ArgumentTypeError,
+)
 
 from rl.config import config
 
@@ -19,6 +24,20 @@ class _StoreExplicit(Action):
         supplied = set(getattr(namespace, "_explicit_options", ()))
         supplied.add(self.dest)
         namespace._explicit_options = supplied
+
+
+def _agent_timesteps(text):
+    """``AGENT=STEPS`` as an ``(agent, steps)`` pair."""
+    from rl.autotrain.training import ENSEMBLE_AGENTS
+
+    name, _, steps = text.partition("=")
+    if name not in ENSEMBLE_AGENTS or not steps.isdigit() or int(steps) < 1:
+        raise ArgumentTypeError(
+            "expected AGENT=STEPS with AGENT in {} and positive integer STEPS, got {!r}".format(
+                ", ".join(ENSEMBLE_AGENTS), text
+            )
+        )
+    return name, int(steps)
 
 
 def build_parser():
@@ -88,6 +107,16 @@ def build_parser():
     )
     agent.add_argument("--rebalance-window", type=int, default=63, help="ensemble only")
     agent.add_argument("--validation-window", type=int, default=63, help="ensemble only")
+    agent.add_argument(
+        "--ensemble-timesteps", nargs="+", type=_agent_timesteps, metavar="AGENT=STEPS",
+        help="ensemble only: training steps per algorithm, e.g. a2c=30000 ppo=100000 "
+        "ddpg=10000 (unlisted algorithms use --timesteps)",
+    )
+    agent.add_argument(
+        "--standalone-agents", action="store_true",
+        help="ensemble only: also trade A2C, PPO and DDPG each with its own account and "
+        "write them to agent_accounts.csv",
+    )
 
     lstm = parser.add_argument_group("lstm forecasting strategy (--mode lstm)")
     lstm.add_argument("--lstm-window", type=int, default=20, help="days of history per forecast")
@@ -161,6 +190,8 @@ def _train_config(options):
         start_trade_date=options.start_trade_date,
         end_date=options.end_date,
         use_turbulence=not options.no_turbulence,
+        ensemble_timesteps=dict(options.ensemble_timesteps) if options.ensemble_timesteps else None,
+        standalone_accounts=options.standalone_agents,
         turbulence_threshold=options.turbulence_threshold,
         turbulence_quantile=options.turbulence_quantile,
         hmax=options.hmax,

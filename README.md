@@ -1,89 +1,64 @@
-# RL-pricing: can deep RL beat 1/N?
+# RL-pricing: a reproducibility lab for trading AI
 
 [![tests](https://github.com/BichengWang/RL-pricing/actions/workflows/tests.yml/badge.svg)](https://github.com/BichengWang/RL-pricing/actions/workflows/tests.yml)
 [![bench](https://github.com/BichengWang/RL-pricing/actions/workflows/bench.yml/badge.svg)](https://github.com/BichengWang/RL-pricing/actions/workflows/bench.yml)
 [![arXiv](https://img.shields.io/badge/arXiv-2609.31870-b31b1b.svg)](https://arxiv.org/abs/2609.31870)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-An honest benchmark for reinforcement-learning portfolio policies. Every
-policy (deep RL, forecasters, rules, your idea) is traded by the same causal
-execution model on survivorship-free universes, scored over several seeds
-against equal weighting, and then frozen and scored **live** on market data
-that did not exist when it was published.
+We re-test published trading-AI claims (deep RL, LLM agents, forecasters)
+under one pre-registered protocol, and publish every verdict next to the
+authors' reply. That includes the verdicts against our own paper. The instruments are public:
+a causal backtesting benchmark, a live track scored only on market data that
+did not exist when a policy was published, and a ledger of decisions
+committed before each US market open.
 
-![Per-seed Sharpe ratios of every strategy against 1/N](leaderboard/sharpe.png)
+## Verdicts
 
-## Findings so far
+<!-- reports:start -->
+| Report | Claim | Level | Claimed | Ours (95% interval) | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| [r0-wang-zhang-2026](reports/r0-wang-zhang-2026/report.md) | `ddpg-annual-return` (annual_return) | L2 | 55.5% | 24.6% [17.3%, 31.9%] | ✗ does not hold |
+| [r0-wang-zhang-2026](reports/r0-wang-zhang-2026/report.md) | `ddpg-sharpe` (sharpe) | L2 | 1.38 | 1.16 [0.93, 1.39] | ◐ partly holds |
+| [r0-wang-zhang-2026](reports/r0-wang-zhang-2026/report.md) | `td3-sharpe` (sharpe) | L2 | 1.37 | 1.10 [0.69, 1.52] | ◐ partly holds |
+| [r0-wang-zhang-2026](reports/r0-wang-zhang-2026/report.md) | `sac-sharpe` (sharpe) | L2 | 1.33 | 1.23 [1.07, 1.39] | ◐ partly holds |
+| [r0-wang-zhang-2026](reports/r0-wang-zhang-2026/report.md) | `ppo-sharpe` (sharpe) | L2 | 1.09 | 1.17 [0.90, 1.44] | ◐ partly holds |
+| [r0-wang-zhang-2026](reports/r0-wang-zhang-2026/report.md) | `a2c-sharpe` (sharpe) | L2 | 0.82 | 1.09 [0.91, 1.27] | ◐ partly holds |
+| [r0-wang-zhang-2026](reports/r0-wang-zhang-2026/report.md) | `lstm-max-drawdown` (max_drawdown) | L2 | -9.6% | -26.5% [-29.4%, -23.7%] | ? inconclusive |
+| [r0-wang-zhang-2026](reports/r0-wang-zhang-2026/report.md) | `lstm-sharpe` (sharpe) | L2 | 1.19 | 0.75 [0.39, 1.12] | ? inconclusive |
 
-Historical track, test windows 2018–2025 (US ETFs) and 2023–2025 (crypto),
-untuned Stable-Baselines3 agents, 5 seeds each:
+Verdicts: ✅ holds, ◐ partly holds, ✗ does not hold, ? inconclusive. [How a verdict is decided](reports/README.md#how-a-verdict-is-decided).
+<!-- reports:end -->
 
-- **No learned policy beats 1/N buy-and-hold here.** All 24 RL and LSTM entries
-  across the four tasks have a lower seed-averaged Sharpe ratio than holding
-  every asset in equal weight. Only 3 of their 120 individual seeds do better,
-  so cherry-picking one would make a publishable-looking result.
-- **The off-policy agents churn themselves to death.** SAC, TD3 and DDPG
-  turn over 46–326× their equity per year. On the US tasks their alpha
-  against 1/N is negative, with *t*-statistics down to −2.8.
-- **A2C rediscovers 1/N.** Its five seeds on US sectors land at Sharpe
-  0.67 ± 0.01 against 1/N's 0.68: the softmax policy learns to stay close to
-  equal weights.
-- **The one significant win is not RL.** In crypto, long-only minimum
-  variance beats 1/N (ΔSharpe +0.86, bootstrap p < 0.001), mostly by holding
-  the two least volatile coins, BTC (50% on average) and BNB (36%).
-- **Our own paper only partly survives.** Its 55.5% annual return does not
-  reproduce in 50 runs; its Sharpe ratios appear as the best of five seeds;
-  only SAC stays ahead of 1/N on average, not significantly. See
-  [below](#re-evaluating-our-own-paper).
-
-These are reference agents with default hyperparameters (`trials: 1`).
-Better-tuned submissions are exactly what the leaderboard is for, and they
-are welcome.
-
-## Leaderboard
-
-<!-- leaderboard:start -->
-| Track | Task | # | Strategy | Sharpe | CAGR | Max DD | ΔSharpe vs 1/N | DSR |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| historical | `crypto-majors` | 1 | Minimum variance | 1.64 | 90.9% | -33.3% | +0.86 (p<0.001) | 1.00 |
-| historical | `crypto-majors` | 2 | Inverse volatility | 0.88 | 40.7% | -46.8% | +0.10 (p=0.089) | 0.94 |
-| historical | `crypto-majors` | 3 | Momentum (top 3) | 0.84 | 37.8% | -47.9% | +0.06 (p=0.401) | 0.93 |
-| historical | `crypto-majors` | 4 | **1/N buy and hold** ◆ | 0.78 | 32.7% | -44.5% | – | 0.91 |
-| historical | `crypto-majors` | 6 | A2C | 0.70 ± 0.03 | 26.4% | -45.6% | -0.07 (p=0.822) | 0.89 |
-| historical | `us-multi-asset` | 1 | **1/N buy and hold** ◆ | 0.73 | 8.9% | -26.6% | – | 0.98 |
-| historical | `us-multi-asset` | 2 | Momentum (top 3) | 0.72 | 9.9% | -23.7% | -0.01 (p=0.506) | 0.98 |
-| historical | `us-multi-asset` | 3 | 1/N monthly rebalance | 0.69 | 8.0% | -25.8% | -0.04 (p=0.827) | 0.97 |
-| historical | `us-multi-asset` | 4 | A2C | 0.66 ± 0.02 | 7.1% | -23.8% | -0.06 (p=0.940) | 0.97 |
-| historical | `us-sectors` | 1 | 1/N monthly rebalance | 0.69 | 11.6% | -36.7% | +0.01 (p=0.449) | 0.97 |
-| historical | `us-sectors` | 2 | **1/N buy and hold** ◆ | 0.68 | 11.5% | -35.5% | – | 0.97 |
-| historical | `us-sectors` | 3 | A2C | 0.67 ± 0.01 | 10.3% | -34.3% | -0.01 (p=0.650) | 0.97 |
-| historical | `paper-2021` (re-evaluation) | – | Momentum (top 3) | 1.31 | 48.6% | -30.4% | +0.20 (p=0.240) | 0.96 |
-| historical | `paper-2021` (re-evaluation) | – | **1/N buy and hold** ◆ | 1.11 | 29.9% | -29.4% | – | 0.94 |
-| historical | `paper-2021` (re-evaluation) | – | 1/N monthly rebalance | 1.04 | 26.7% | -29.5% | -0.07 (p=0.777) | 0.93 |
-| historical | `paper-2021` (re-evaluation) | – | A2C | 1.03 ± 0.01 | 25.1% | -28.2% | -0.08 (p=0.825) | 0.92 |
-
-Full tables: [leaderboard/LEADERBOARD.md](leaderboard/LEADERBOARD.md).
-<!-- leaderboard:end -->
-
-## Why trust these numbers
-
-| | This benchmark | Common in RL-trading papers |
+| Next | Claim under test | Due |
 | --- | --- | --- |
-| Execution | Decide at the close, fill at the next open, proportional fees | Fill at the same close used to decide; often no fees |
-| Universe | Fixed ETFs; crypto top-10 by volume *before* the data starts, delistings included | Today's index members, back-tested into the past |
-| Randomness | 5 seeds per learned policy, mean ± sd, every seed plotted | One run |
-| Model selection | Validation window before the test; declared `trials` deflate the Sharpe | Tuned on the test period |
-| Out-of-sample | Live track: frozen policy, scored only on sessions after its public freeze | One fixed historical window |
-| Metrics | One implementation for everyone; beta and alpha against 1/N | Per-paper definitions |
+| R1 | FinRL ensemble ([Yang et al., ICAIF 2020](https://arxiv.org/abs/2511.12120)): Sharpe 1.30 vs the DJIA's 0.47, 2016–2020 | 2026-12-01 |
+| R2 | [TradingAgents](https://arxiv.org/abs/2412.20138) backtest: Sharpe 5.6–8.2 on AAPL, GOOGL, AMZN in 2024 Q1, replicated with a check for whether the models remember that period | 2027-01-05 |
+| R3 | TradingAgents run live on the same three stocks for three months, each decision committed before the open ([pre-registration](reports/r3-tradingagents-live/preregistration.md)) | 2027-02-15 |
 
-The live track is the part nobody can overfit. A policy is fitted on all
-data available today and its artifacts are committed with SHA-256 hashes. A
-CI job on `main` then stamps the time the freeze became public
-(`leaderboard/publications.json`, which pull requests may not edit), and
-from then on it is scored monthly on sessions that start after that stamp.
-The first live scores appear after the next monthly run.
+Authors get each draft seven days before publication. To nominate a claim,
+open an issue titled `Nominate: <paper>` with the quoted claim and a link to
+the code.
 
-## Re-evaluating our own paper
+## How the lab works
+
+- **Pre-registered.** Each report's test plan is committed before anything
+  runs; the commit time is the evidence that the plan came first.
+- **Three levels.** L1 replicates with the authors' code and setup. L2
+  re-tests under this repository's protocol: next-open fills, fees, at least
+  five seeds, survivorship-free data. L3 tries new windows and, for anything
+  that can run daily, the live ledger.
+- **Verdicts by rule:** holds, partly holds, does not hold, or inconclusive,
+  decided by thresholds fixed in the pre-registration
+  ([rules and template](reports/README.md)).
+- **LLM agents only count live.** Their historical backtests can be
+  contaminated by training data. The ledger commits each decision before the
+  open, and scoring checks the commit against GitHub's own run records.
+- **Evidence is committed.** Each report ships its per-seed results, input
+  hashes and one command that reproduces them.
+
+## R0: our own paper
+
+Full report: [`reports/r0-wang-zhang-2026/report.md`](reports/r0-wang-zhang-2026/report.md).
 
 Our preprint ([Wang & Zhang, arXiv:2609.31870](https://arxiv.org/abs/2609.31870))
 reported DDPG with a 55.5% annual return and Sharpe 1.38 on 20 large-cap
@@ -132,8 +107,80 @@ What holds up and what doesn't:
   trail 1/N. Which difference drives that is open: share counts versus
   weights, the features, or the share environment's per-trade limits.
 
-Per-seed results, commands and the input-data hash are in
-[`leaderboard/reproductions/paper-2021-share-env.json`](leaderboard/reproductions/paper-2021-share-env.json).
+Per-seed results, equity curves, commands and the input-data hash are in
+[`reports/r0-wang-zhang-2026/evidence/`](reports/r0-wang-zhang-2026/evidence/).
+
+## Benchmark findings
+
+![Per-seed Sharpe ratios of every strategy against 1/N](leaderboard/sharpe.png)
+
+Historical track, test windows 2018–2025 (US ETFs) and 2023–2025 (crypto),
+Stable-Baselines3 agents with default and tuned hyperparameters, 5 seeds each:
+
+- **No learned policy beats 1/N buy-and-hold here.** All 30 RL and LSTM entries
+  across the four tasks have a lower seed-averaged Sharpe ratio than holding
+  every asset in equal weight. Only 5 of their 150 individual seeds do better,
+  so cherry-picking one would make a publishable-looking result.
+- **Tuning doesn't close the gap.** A declared sweep of 8 configurations each
+  for PPO and SAC, selected on validation data only, picks configurations that
+  still trail 1/N on every task. SAC's choice helps on the US tasks and
+  collapses on crypto (Sharpe 0.07 ± 0.49). The deflated Sharpe column
+  accounts for the 8 trials.
+- **The off-policy agents churn themselves to death.** SAC, TD3 and DDPG
+  turn over 46–326× their equity per year. On the US tasks their alpha
+  against 1/N is negative, with *t*-statistics down to −2.8.
+- **A2C rediscovers 1/N.** Its five seeds on US sectors land at Sharpe
+  0.67 ± 0.01 against 1/N's 0.68: the softmax policy learns to stay close to
+  equal weights.
+- **The one significant win is not RL.** In crypto, long-only minimum
+  variance beats 1/N (ΔSharpe +0.86, bootstrap p < 0.001), mostly by holding
+  the two least volatile coins, BTC (50% on average) and BNB (36%).
+
+Better configurations are what the leaderboard is for: submit one, and state
+how many you tried.
+
+## Leaderboard
+
+<!-- leaderboard:start -->
+| Track | Task | # | Strategy | Sharpe | CAGR | Max DD | ΔSharpe vs 1/N | DSR |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| historical | `crypto-majors` | 1 | Minimum variance | 1.64 | 90.9% | -33.3% | +0.86 (p<0.001) | 1.00 |
+| historical | `crypto-majors` | 2 | Inverse volatility | 0.88 | 40.7% | -46.8% | +0.10 (p=0.089) | 0.94 |
+| historical | `crypto-majors` | 3 | Momentum (top 3) | 0.84 | 37.8% | -47.9% | +0.06 (p=0.401) | 0.93 |
+| historical | `crypto-majors` | 4 | **1/N buy and hold** ◆ | 0.78 | 32.7% | -44.5% | – | 0.91 |
+| historical | `crypto-majors` | 6 | PPO (tuned) | 0.71 ± 0.22 | 26.9% | -49.3% | -0.04 (p=0.621) | 0.43 |
+| historical | `us-multi-asset` | 1 | **1/N buy and hold** ◆ | 0.73 | 8.9% | -26.6% | – | 0.98 |
+| historical | `us-multi-asset` | 2 | Momentum (top 3) | 0.72 | 9.9% | -23.7% | -0.01 (p=0.506) | 0.98 |
+| historical | `us-multi-asset` | 3 | 1/N monthly rebalance | 0.69 | 8.0% | -25.8% | -0.04 (p=0.827) | 0.97 |
+| historical | `us-multi-asset` | 4 | A2C | 0.66 ± 0.02 | 7.1% | -23.8% | -0.06 (p=0.940) | 0.97 |
+| historical | `us-sectors` | 1 | 1/N monthly rebalance | 0.69 | 11.6% | -36.7% | +0.01 (p=0.449) | 0.97 |
+| historical | `us-sectors` | 2 | **1/N buy and hold** ◆ | 0.68 | 11.5% | -35.5% | – | 0.97 |
+| historical | `us-sectors` | 3 | A2C | 0.67 ± 0.01 | 10.3% | -34.3% | -0.01 (p=0.650) | 0.97 |
+| historical | `paper-2021` (re-evaluation) | – | Momentum (top 3) | 1.31 | 48.6% | -30.4% | +0.20 (p=0.240) | 0.96 |
+| historical | `paper-2021` (re-evaluation) | – | **1/N buy and hold** ◆ | 1.11 | 29.9% | -29.4% | – | 0.94 |
+| historical | `paper-2021` (re-evaluation) | – | 1/N monthly rebalance | 1.04 | 26.7% | -29.5% | -0.07 (p=0.777) | 0.93 |
+| historical | `paper-2021` (re-evaluation) | – | A2C | 1.03 ± 0.01 | 25.1% | -28.2% | -0.08 (p=0.825) | 0.92 |
+
+Full tables: [leaderboard/LEADERBOARD.md](leaderboard/LEADERBOARD.md).
+<!-- leaderboard:end -->
+
+## Why trust these numbers
+
+| | This benchmark | Common in RL-trading papers |
+| --- | --- | --- |
+| Execution | Decide at the close, fill at the next open, proportional fees | Fill at the same close used to decide; often no fees |
+| Universe | Fixed ETFs; crypto top-10 by volume *before* the data starts, delistings included | Today's index members, back-tested into the past |
+| Randomness | 5 seeds per learned policy, mean ± sd, every seed plotted | One run |
+| Model selection | Validation window before the test; declared `trials` deflate the Sharpe | Tuned on the test period |
+| Out-of-sample | Live track: frozen policy, scored only on sessions after its public freeze | One fixed historical window |
+| Metrics | One implementation for everyone; beta and alpha against 1/N | Per-paper definitions |
+
+The live track is the part nobody can overfit. A policy is fitted on all
+data available today and its artifacts are committed with SHA-256 hashes. A
+CI job on `main` then stamps the time the freeze became public
+(`leaderboard/publications.json`, which pull requests may not edit), and
+from then on it is scored monthly on sessions that start after that stamp.
+The first live scores appear after the next monthly run.
 
 ## Quick start
 

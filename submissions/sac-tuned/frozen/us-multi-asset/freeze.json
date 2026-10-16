@@ -1,0 +1,34 @@
+{
+  "task": "us-multi-asset",
+  "submission": "sac-tuned",
+  "policy": "rl.bench.policies.sb3:SB3Policy",
+  "params": {
+    "algo": "sac",
+    "timesteps": 100000,
+    "episode_length": 63,
+    "net_arch": [
+      128,
+      128
+    ],
+    "learning_rate": 0.0003,
+    "gamma": 0.95
+  },
+  "fitted_through": "2026-10-13",
+  "validation_start": "2023-10-13",
+  "frozen_at": "2026-10-15T03:42:09+00:00",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "data_sha256": "1e3404d7566c120f51ebe3b4c297617a673150721b176eded8154226d745e601",
+  "commit": "4c09f9cfa20c64b82b0d680dd3586147457de9ea",
+  "artifacts": {
+    "seed0/actor.npz": "99e1f19fc4238a45c25d80a8311dece6c23ca8c04f87c1f2a5a989c6d66ce370",
+    "seed0/meta.json": "12e487aa2faa1d46428071e968a061aad0e22b3c4335f332ff701f59b53f770e",
+    "seed1/actor.npz": "9143fe89c3405c1faf4410a9807998e3c69153533e7de6c697d3e99836442794",
+    "seed1/meta.json": "73e93230071e4930c9f8665301371fdea689874f25847262450b7fa921e5f621",
+    "seed2/actor.npz": "9450076c74c520bb64d69b06c38cebc9f16d83324e7ef3e6037b6909e283c4d4",
+    "seed2/meta.json": "fe8a9710dd66dcf019f6a5608449ec1980b1a2628c4a918fc037e34807a74875"
+  }
+}

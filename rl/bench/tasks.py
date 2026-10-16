@@ -20,6 +20,19 @@ One task deliberately breaks that rule:
   setup with multiple seeds and the benchmark's execution model, not to rank
   strategies.
 
+Three more tasks are single-asset reproduction tasks, not ranked universes:
+
+* ``us-aapl``, ``us-googl``, ``us-amzn``: one stock each, with the test
+  window of the TradingAgents paper (Xiao et al., arXiv 2412.20138, Table 1:
+  2024-01-01 to 2024-03-29, whose last session is 2024-03-28). The tickers
+  are the paper's and were large caps long before the window, but a
+  one-asset "universe" is a survivorship-biased pick by construction: the
+  benchmark is that stock bought and held, and a one-asset score says
+  nothing about a strategy's breadth. They exist so the paper's claims can
+  be re-tested with this engine's execution model and followed forward on
+  the live decision ledger. They have no frozen-policy live track
+  (``live=False``), so merges don't freeze every submission on them.
+
 Historical splits: train on ``[start, validation_start)``, select models on
 ``[validation_start, test_start)`` and report ``[test_start, test_end)``.
 The live track instead fits on all data up to a freeze date, holding out the
@@ -124,6 +137,48 @@ TASKS = {
             transaction_cost=0.001,
             periods_per_year=252,
             description="The 2021 paper's 20 large caps and 2019-2020 test; survivorship-biased by design.",
+            live=False,
+        ),
+        Task(
+            id="us-aapl",
+            title="AAPL (TradingAgents paper window)",
+            source="yahoo",
+            tickers=("AAPL",),
+            start="2015-01-01",
+            validation_start="2023-07-01",
+            test_start="2024-01-01",
+            test_end="2024-03-30",
+            transaction_cost=0.0005,
+            periods_per_year=252,
+            description="Single-asset long/flat on Apple with the TradingAgents paper's 2024 Q1 test window; a reproduction task, not a ranked universe.",
+            live=False,
+        ),
+        Task(
+            id="us-googl",
+            title="GOOGL (TradingAgents paper window)",
+            source="yahoo",
+            tickers=("GOOGL",),
+            start="2015-01-01",
+            validation_start="2023-07-01",
+            test_start="2024-01-01",
+            test_end="2024-03-30",
+            transaction_cost=0.0005,
+            periods_per_year=252,
+            description="Single-asset long/flat on Alphabet (class A) with the TradingAgents paper's 2024 Q1 test window; a reproduction task, not a ranked universe.",
+            live=False,
+        ),
+        Task(
+            id="us-amzn",
+            title="AMZN (TradingAgents paper window)",
+            source="yahoo",
+            tickers=("AMZN",),
+            start="2015-01-01",
+            validation_start="2023-07-01",
+            test_start="2024-01-01",
+            test_end="2024-03-30",
+            transaction_cost=0.0005,
+            periods_per_year=252,
+            description="Single-asset long/flat on Amazon with the TradingAgents paper's 2024 Q1 test window; a reproduction task, not a ranked universe.",
             live=False,
         ),
         Task(

@@ -1,0 +1,625 @@
+{
+  "schema": 1,
+  "submission": "ppo-tuned",
+  "base": "ppo",
+  "started_at": "2026-10-15T00:18:25+00:00",
+  "finished_at": "2026-10-15T00:54:50+00:00",
+  "tasks": [
+    "us-sectors",
+    "us-multi-asset",
+    "crypto-majors"
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "metric": "per-period (not annualised) Sharpe ratio of the fitted policy on [validation_start, test_start)",
+  "validation_windows": {
+    "us-sectors": [
+      "2015-01-01",
+      "2018-01-01"
+    ],
+    "us-multi-asset": [
+      "2015-01-01",
+      "2018-01-01"
+    ],
+    "crypto-majors": [
+      "2022-01-01",
+      "2023-01-01"
+    ]
+  },
+  "validation_data_sha256": {
+    "us-sectors": "f9226dd4319e72da5fac36675fa4538132b7ddf287812fcf3ca3d128a1323d43",
+    "us-multi-asset": "81312907e29a9aee14ae2dfe7f8686b139af02f3123437e0efb422a10e89c915",
+    "crypto-majors": "39b695a1e7cd97888d2383b15bd180c1df16216dbbe9ad928afb81bb8fecd852"
+  },
+  "selection_rule": "Each configuration is fitted on the training window and scored on the validation window [validation_start, test_start) of every task, for every seed, by the per-period Sharpe ratio of the fitted policy simulated there with the task's costs. Scores are averaged over seeds, ranked within each task (the best of N configurations gets rank N, ties share the mean rank), and the single configuration with the highest mean rank across tasks is selected; remaining ties go to the earliest declared configuration. Test sessions are never loaded by the search.",
+  "rationale": "Learning rate: the SB3 default 3e-4 against 1e-3; daily-return rewards are noisy, so the question is whether faster learning finds better policies within the fixed timestep budget. Network width: the default [64, 64] against [128, 128], to test whether more capacity helps on 8-10 asset features or only overfits. Horizon: 252-session episodes with gamma 0.99 (default; effective horizon about 100 sessions) against 63-session (one quarter) episodes with gamma 0.95 (effective horizon about 20 sessions), because the reward is a per-session log return and a shorter credit horizon reduces variance. Timesteps, features, reward and checkpoint selection are held at the base submission's values. The grid is the full 2 x 2 x 2 factorial and includes the untuned default. Note: SB3Policy itself keeps the checkpoint with the best validation Sharpe, so every configuration's validation score is an optimistic, checkpoint-selected number; the bias is the same for all configurations and the leaderboard's deflation uses trials = 8.",
+  "configs": [
+    {
+      "index": 0,
+      "overrides": {
+        "learning_rate": 0.0003,
+        "net_arch": [
+          64,
+          64
+        ],
+        "episode_length": 252,
+        "gamma": 0.99
+      },
+      "params": {
+        "algo": "ppo",
+        "timesteps": 200000,
+        "episode_length": 252,
+        "net_arch": [
+          64,
+          64
+        ],
+        "learning_rate": 0.0003,
+        "gamma": 0.99
+      },
+      "validation": {
+        "us-sectors": {
+          "sharpe_mean": 0.048262051260674635,
+          "sharpe_per_seed": {
+            "0": 0.049003591339832286,
+            "1": 0.04698348342500899,
+            "2": 0.04798141835551883,
+            "3": 0.04792775582772365,
+            "4": 0.049414007355289384
+          },
+          "failed_seeds": [],
+          "seconds": 586.3
+        },
+        "us-multi-asset": {
+          "sharpe_mean": 0.0506176429139073,
+          "sharpe_per_seed": {
+            "0": 0.05574574770428691,
+            "1": 0.0477043179917922,
+            "2": 0.049034866341850926,
+            "3": 0.05169696035796919,
+            "4": 0.04890632217363727
+          },
+          "failed_seeds": [],
+          "seconds": 841.8
+        },
+        "crypto-majors": {
+          "sharpe_mean": -0.04939751491949777,
+          "sharpe_per_seed": {
+            "0": -0.049571989177831476,
+            "1": -0.05430034781051103,
+            "2": -0.04418197351214785,
+            "3": -0.0469450424260457,
+            "4": -0.051988221670952836
+          },
+          "failed_seeds": [],
+          "seconds": 617.1
+        }
+      },
+      "eligible": true,
+      "ranks": {
+        "us-sectors": 8.0,
+        "us-multi-asset": 8.0,
+        "crypto-majors": 2.0
+      },
+      "mean_rank": 6.0,
+      "selected": false
+    },
+    {
+      "index": 1,
+      "overrides": {
+        "learning_rate": 0.0003,
+        "net_arch": [
+          64,
+          64
+        ],
+        "episode_length": 63,
+        "gamma": 0.95
+      },
+      "params": {
+        "algo": "ppo",
+        "timesteps": 200000,
+        "episode_length": 63,
+        "net_arch": [
+          64,
+          64
+        ],
+        "learning_rate": 0.0003,
+        "gamma": 0.95
+      },
+      "validation": {
+        "us-sectors": {
+          "sharpe_mean": 0.04811717496902,
+          "sharpe_per_seed": {
+            "0": 0.046314875339693036,
+            "1": 0.04797160875121197,
+            "2": 0.047126530396713905,
+            "3": 0.049185366835256566,
+            "4": 0.04998749352222454
+          },
+          "failed_seeds": [],
+          "seconds": 612.0
+        },
+        "us-multi-asset": {
+          "sharpe_mean": 0.04804094525293719,
+          "sharpe_per_seed": {
+            "0": 0.049452739895342386,
+            "1": 0.04599914311226384,
+            "2": 0.05228009573602525,
+            "3": 0.04635011169733094,
+            "4": 0.046122635823723515
+          },
+          "failed_seeds": [],
+          "seconds": 848.4
+        },
+        "crypto-majors": {
+          "sharpe_mean": -0.04124944262038715,
+          "sharpe_per_seed": {
+            "0": -0.058066748537754335,
+            "1": -0.016816382871922983,
+            "2": -0.0503150048136306,
+            "3": -0.029355076430161577,
+            "4": -0.05169400044846626
+          },
+          "failed_seeds": [],
+          "seconds": 579.4
+        }
+      },
+      "eligible": true,
+      "ranks": {
+        "us-sectors": 7.0,
+        "us-multi-asset": 7.0,
+        "crypto-majors": 5.0
+      },
+      "mean_rank": 6.333333333333333,
+      "selected": true
+    },
+    {
+      "index": 2,
+      "overrides": {
+        "learning_rate": 0.0003,
+        "net_arch": [
+          128,
+          128
+        ],
+        "episode_length": 252,
+        "gamma": 0.99
+      },
+      "params": {
+        "algo": "ppo",
+        "timesteps": 200000,
+        "episode_length": 252,
+        "net_arch": [
+          128,
+          128
+        ],
+        "learning_rate": 0.0003,
+        "gamma": 0.99
+      },
+      "validation": {
+        "us-sectors": {
+          "sharpe_mean": 0.04804371376815743,
+          "sharpe_per_seed": {
+            "0": 0.04519837346799652,
+            "1": 0.04546429537538717,
+            "2": 0.04864960327549445,
+            "3": 0.05199265734383988,
+            "4": 0.04891363937806913
+          },
+          "failed_seeds": [],
+          "seconds": 774.9
+        },
+        "us-multi-asset": {
+          "sharpe_mean": 0.04701057066566429,
+          "sharpe_per_seed": {
+            "0": 0.039757166053814234,
+            "1": 0.05017997197020848,
+            "2": 0.044373105629966075,
+            "3": 0.047836893547965775,
+            "4": 0.052905716126366846
+          },
+          "failed_seeds": [],
+          "seconds": 881.2
+        },
+        "crypto-majors": {
+          "sharpe_mean": -0.04139643603893862,
+          "sharpe_per_seed": {
+            "0": -0.030822071731143652,
+            "1": -0.036183392983481125,
+            "2": -0.042830278318044625,
+            "3": -0.043538210574426084,
+            "4": -0.0536082265875976
+          },
+          "failed_seeds": [],
+          "seconds": 585.5
+        }
+      },
+      "eligible": true,
+      "ranks": {
+        "us-sectors": 5.0,
+        "us-multi-asset": 6.0,
+        "crypto-majors": 4.0
+      },
+      "mean_rank": 5.0,
+      "selected": false
+    },
+    {
+      "index": 3,
+      "overrides": {
+        "learning_rate": 0.0003,
+        "net_arch": [
+          128,
+          128
+        ],
+        "episode_length": 63,
+        "gamma": 0.95
+      },
+      "params": {
+        "algo": "ppo",
+        "timesteps": 200000,
+        "episode_length": 63,
+        "net_arch": [
+          128,
+          128
+        ],
+        "learning_rate": 0.0003,
+        "gamma": 0.95
+      },
+      "validation": {
+        "us-sectors": {
+          "sharpe_mean": 0.04806730621873624,
+          "sharpe_per_seed": {
+            "0": 0.05015373292787255,
+            "1": 0.047417592992295386,
+            "2": 0.05162102779981432,
+            "3": 0.044222519880552806,
+            "4": 0.04692165749314616
+          },
+          "failed_seeds": [],
+          "seconds": 716.7
+        },
+        "us-multi-asset": {
+          "sharpe_mean": 0.04638088691418876,
+          "sharpe_per_seed": {
+            "0": 0.049160850978586815,
+            "1": 0.0454919220647657,
+            "2": 0.04598322096984534,
+            "3": 0.046109362963327814,
+            "4": 0.045159077594418146
+          },
+          "failed_seeds": [],
+          "seconds": 809.9
+        },
+        "crypto-majors": {
+          "sharpe_mean": -0.020694916481673133,
+          "sharpe_per_seed": {
+            "0": -0.019754087248491578,
+            "1": -0.02815722160240726,
+            "2": -0.021943199774654715,
+            "3": -0.005114372830458991,
+            "4": -0.02850570095235312
+          },
+          "failed_seeds": [],
+          "seconds": 594.8
+        }
+      },
+      "eligible": true,
+      "ranks": {
+        "us-sectors": 6.0,
+        "us-multi-asset": 5.0,
+        "crypto-majors": 8.0
+      },
+      "mean_rank": 6.333333333333333,
+      "selected": false
+    },
+    {
+      "index": 4,
+      "overrides": {
+        "learning_rate": 0.001,
+        "net_arch": [
+          64,
+          64
+        ],
+        "episode_length": 252,
+        "gamma": 0.99
+      },
+      "params": {
+        "algo": "ppo",
+        "timesteps": 200000,
+        "episode_length": 252,
+        "net_arch": [
+          64,
+          64
+        ],
+        "learning_rate": 0.001,
+        "gamma": 0.99
+      },
+      "validation": {
+        "us-sectors": {
+          "sharpe_mean": 0.04198995987671629,
+          "sharpe_per_seed": {
+            "0": 0.04188760220022403,
+            "1": 0.04431727529203924,
+            "2": 0.043571152915201666,
+            "3": 0.03933794137795907,
+            "4": 0.040835827598157425
+          },
+          "failed_seeds": [],
+          "seconds": 566.1
+        },
+        "us-multi-asset": {
+          "sharpe_mean": 0.04197841014876129,
+          "sharpe_per_seed": {
+            "0": 0.047565381249534154,
+            "1": 0.04426276468282716,
+            "2": 0.04204909042266092,
+            "3": 0.04191488335095146,
+            "4": 0.03409993103783278
+          },
+          "failed_seeds": [],
+          "seconds": 698.4
+        },
+        "crypto-majors": {
+          "sharpe_mean": -0.046346036374026046,
+          "sharpe_per_seed": {
+            "0": -0.04994342152264743,
+            "1": -0.028544265310650505,
+            "2": -0.05804954892061662,
+            "3": -0.0541332375983593,
+            "4": -0.04105970851785636
+          },
+          "failed_seeds": [],
+          "seconds": 514.5
+        }
+      },
+      "eligible": true,
+      "ranks": {
+        "us-sectors": 2.0,
+        "us-multi-asset": 4.0,
+        "crypto-majors": 3.0
+      },
+      "mean_rank": 3.0,
+      "selected": false
+    },
+    {
+      "index": 5,
+      "overrides": {
+        "learning_rate": 0.001,
+        "net_arch": [
+          64,
+          64
+        ],
+        "episode_length": 63,
+        "gamma": 0.95
+      },
+      "params": {
+        "algo": "ppo",
+        "timesteps": 200000,
+        "episode_length": 63,
+        "net_arch": [
+          64,
+          64
+        ],
+        "learning_rate": 0.001,
+        "gamma": 0.95
+      },
+      "validation": {
+        "us-sectors": {
+          "sharpe_mean": 0.04219118097512478,
+          "sharpe_per_seed": {
+            "0": 0.03833841668647476,
+            "1": 0.04545090289005405,
+            "2": 0.03995991159527358,
+            "3": 0.04048256470646067,
+            "4": 0.04672410899736085
+          },
+          "failed_seeds": [],
+          "seconds": 667.8
+        },
+        "us-multi-asset": {
+          "sharpe_mean": 0.04143916657657551,
+          "sharpe_per_seed": {
+            "0": 0.040662669561667836,
+            "1": 0.04567061043091631,
+            "2": 0.044584647332153414,
+            "3": 0.038976215232239986,
+            "4": 0.0373016903259
+          },
+          "failed_seeds": [],
+          "seconds": 647.9
+        },
+        "crypto-majors": {
+          "sharpe_mean": -0.03604236297258916,
+          "sharpe_per_seed": {
+            "0": -0.04760645884180684,
+            "1": -0.04797964462510959,
+            "2": -0.013648217309526972,
+            "3": -0.02225038895299971,
+            "4": -0.048727105133502695
+          },
+          "failed_seeds": [],
+          "seconds": 486.5
+        }
+      },
+      "eligible": true,
+      "ranks": {
+        "us-sectors": 3.0,
+        "us-multi-asset": 3.0,
+        "crypto-majors": 7.0
+      },
+      "mean_rank": 4.333333333333333,
+      "selected": false
+    },
+    {
+      "index": 6,
+      "overrides": {
+        "learning_rate": 0.001,
+        "net_arch": [
+          128,
+          128
+        ],
+        "episode_length": 252,
+        "gamma": 0.99
+      },
+      "params": {
+        "algo": "ppo",
+        "timesteps": 200000,
+        "episode_length": 252,
+        "net_arch": [
+          128,
+          128
+        ],
+        "learning_rate": 0.001,
+        "gamma": 0.99
+      },
+      "validation": {
+        "us-sectors": {
+          "sharpe_mean": 0.04139879612451568,
+          "sharpe_per_seed": {
+            "0": 0.04045594413518483,
+            "1": 0.038037314554857676,
+            "2": 0.04342341883873933,
+            "3": 0.04228178035321185,
+            "4": 0.04279552274058471
+          },
+          "failed_seeds": [],
+          "seconds": 804.7
+        },
+        "us-multi-asset": {
+          "sharpe_mean": 0.03434074360746113,
+          "sharpe_per_seed": {
+            "0": 0.03057549561808124,
+            "1": 0.03926520623995459,
+            "2": 0.031254752326176534,
+            "3": 0.028203414984741836,
+            "4": 0.04240484886835145
+          },
+          "failed_seeds": [],
+          "seconds": 750.9
+        },
+        "crypto-majors": {
+          "sharpe_mean": -0.05260361282128186,
+          "sharpe_per_seed": {
+            "0": -0.05452887382683237,
+            "1": -0.04440392964999496,
+            "2": -0.05654043386043778,
+            "3": -0.04948483534324709,
+            "4": -0.058059991425897135
+          },
+          "failed_seeds": [],
+          "seconds": 510.8
+        }
+      },
+      "eligible": true,
+      "ranks": {
+        "us-sectors": 1.0,
+        "us-multi-asset": 1.0,
+        "crypto-majors": 1.0
+      },
+      "mean_rank": 1.0,
+      "selected": false
+    },
+    {
+      "index": 7,
+      "overrides": {
+        "learning_rate": 0.001,
+        "net_arch": [
+          128,
+          128
+        ],
+        "episode_length": 63,
+        "gamma": 0.95
+      },
+      "params": {
+        "algo": "ppo",
+        "timesteps": 200000,
+        "episode_length": 63,
+        "net_arch": [
+          128,
+          128
+        ],
+        "learning_rate": 0.001,
+        "gamma": 0.95
+      },
+      "validation": {
+        "us-sectors": {
+          "sharpe_mean": 0.043540583277165416,
+          "sharpe_per_seed": {
+            "0": 0.042144127950628066,
+            "1": 0.047892454344435904,
+            "2": 0.04536993967293258,
+            "3": 0.04373200218797315,
+            "4": 0.03856439222985736
+          },
+          "failed_seeds": [],
+          "seconds": 882.8
+        },
+        "us-multi-asset": {
+          "sharpe_mean": 0.03939012615941786,
+          "sharpe_per_seed": {
+            "0": 0.038961367309485316,
+            "1": 0.037301514469151156,
+            "2": 0.038667373286310355,
+            "3": 0.03453321727787406,
+            "4": 0.04748715845426843
+          },
+          "failed_seeds": [],
+          "seconds": 790.1
+        },
+        "crypto-majors": {
+          "sharpe_mean": -0.03920448943508746,
+          "sharpe_per_seed": {
+            "0": -0.0484369120071259,
+            "1": -0.027858700443183886,
+            "2": -0.042005423788369536,
+            "3": -0.03918779406065197,
+            "4": -0.038533616876105986
+          },
+          "failed_seeds": [],
+          "seconds": 391.1
+        }
+      },
+      "eligible": true,
+      "ranks": {
+        "us-sectors": 4.0,
+        "us-multi-asset": 2.0,
+        "crypto-majors": 6.0
+      },
+      "mean_rank": 4.0,
+      "selected": false
+    }
+  ],
+  "selection": {
+    "index": 1,
+    "overrides": {
+      "learning_rate": 0.0003,
+      "net_arch": [
+        64,
+        64
+      ],
+      "episode_length": 63,
+      "gamma": 0.95
+    },
+    "params": {
+      "algo": "ppo",
+      "timesteps": 200000,
+      "episode_length": 63,
+      "net_arch": [
+        64,
+        64
+      ],
+      "learning_rate": 0.0003,
+      "gamma": 0.95
+    },
+    "mean_rank": 6.333333333333333
+  },
+  "failures": [],
+  "records": {
+    "us-sectors": "leaderboard/historical/us-sectors/ppo-tuned.json",
+    "us-multi-asset": "leaderboard/historical/us-multi-asset/ppo-tuned.json",
+    "crypto-majors": "leaderboard/historical/crypto-majors/ppo-tuned.json"
+  }
+}

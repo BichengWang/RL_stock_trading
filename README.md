@@ -115,12 +115,17 @@ Per-seed results, equity curves, commands and the input-data hash are in
 ![Per-seed Sharpe ratios of every strategy against 1/N](leaderboard/sharpe.png)
 
 Historical track, test windows 2018–2025 (US ETFs) and 2023–2025 (crypto),
-untuned Stable-Baselines3 agents, 5 seeds each:
+Stable-Baselines3 agents with default and tuned hyperparameters, 5 seeds each:
 
-- **No learned policy beats 1/N buy-and-hold here.** All 24 RL and LSTM entries
+- **No learned policy beats 1/N buy-and-hold here.** All 30 RL and LSTM entries
   across the four tasks have a lower seed-averaged Sharpe ratio than holding
-  every asset in equal weight. Only 3 of their 120 individual seeds do better,
+  every asset in equal weight. Only 5 of their 150 individual seeds do better,
   so cherry-picking one would make a publishable-looking result.
+- **Tuning doesn't close the gap.** A declared sweep of 8 configurations each
+  for PPO and SAC, selected on validation data only, picks configurations that
+  still trail 1/N on every task. SAC's choice helps on the US tasks and
+  collapses on crypto (Sharpe 0.07 ± 0.49). The deflated Sharpe column
+  accounts for the 8 trials.
 - **The off-policy agents churn themselves to death.** SAC, TD3 and DDPG
   turn over 46–326× their equity per year. On the US tasks their alpha
   against 1/N is negative, with *t*-statistics down to −2.8.
@@ -131,9 +136,8 @@ untuned Stable-Baselines3 agents, 5 seeds each:
   variance beats 1/N (ΔSharpe +0.86, bootstrap p < 0.001), mostly by holding
   the two least volatile coins, BTC (50% on average) and BNB (36%).
 
-These are reference agents with default hyperparameters (`trials: 1`).
-Better-tuned submissions are exactly what the leaderboard is for, and they
-are welcome.
+Better configurations are what the leaderboard is for: submit one, and state
+how many you tried.
 
 ## Leaderboard
 
@@ -144,7 +148,7 @@ are welcome.
 | historical | `crypto-majors` | 2 | Inverse volatility | 0.88 | 40.7% | -46.8% | +0.10 (p=0.089) | 0.94 |
 | historical | `crypto-majors` | 3 | Momentum (top 3) | 0.84 | 37.8% | -47.9% | +0.06 (p=0.401) | 0.93 |
 | historical | `crypto-majors` | 4 | **1/N buy and hold** ◆ | 0.78 | 32.7% | -44.5% | – | 0.91 |
-| historical | `crypto-majors` | 6 | A2C | 0.70 ± 0.03 | 26.4% | -45.6% | -0.07 (p=0.822) | 0.89 |
+| historical | `crypto-majors` | 6 | PPO (tuned) | 0.71 ± 0.22 | 26.9% | -49.3% | -0.04 (p=0.621) | 0.43 |
 | historical | `us-multi-asset` | 1 | **1/N buy and hold** ◆ | 0.73 | 8.9% | -26.6% | – | 0.98 |
 | historical | `us-multi-asset` | 2 | Momentum (top 3) | 0.72 | 9.9% | -23.7% | -0.01 (p=0.506) | 0.98 |
 | historical | `us-multi-asset` | 3 | 1/N monthly rebalance | 0.69 | 8.0% | -25.8% | -0.04 (p=0.827) | 0.97 |

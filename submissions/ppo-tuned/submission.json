@@ -1,0 +1,22 @@
+{
+  "name": "PPO (tuned)",
+  "kind": "rl",
+  "policy": "rl.bench.policies.sb3:SB3Policy",
+  "params": {
+    "algo": "ppo",
+    "timesteps": 200000,
+    "episode_length": 63,
+    "net_arch": [
+      64,
+      64
+    ],
+    "learning_rate": 0.0003,
+    "gamma": 0.95
+  },
+  "trials": 8,
+  "authors": [
+    "RL-pricing"
+  ],
+  "url": "",
+  "description": "PPO tuned over a declared grid of 8 configurations (learning_rate: [0.0003, 0.001]; net_arch: [[64, 64], [128, 128]]; episode_length: [252, 63]; gamma: [0.99, 0.95]), all other parameters as in the 'ppo' submission. One configuration is shared by all tasks and was selected on validation data only: the highest mean across tasks (us-sectors, us-multi-asset, crypto-majors) of the rank of its seed-averaged validation Sharpe ratio; the test window was never used for selection. Selected: {\"episode_length\": 63, \"gamma\": 0.95, \"learning_rate\": 0.0003, \"net_arch\": [64, 64]}. trials = 8. Every configuration's scores are in sweep.json."
+}

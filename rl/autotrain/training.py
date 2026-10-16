@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 DATA_SOURCES = ("yahoo", "csv", "synthetic")
 AGENTS = ("a2c", "ppo", "ddpg", "td3", "sac")
+ENSEMBLE_AGENTS = ("a2c", "ppo", "ddpg")
 # trading: buy and sell whole shares (StockTradingEnv);
 # portfolio: choose long-only portfolio weights each day (StockPortfolioEnv).
 TASKS = ("trading", "portfolio")
@@ -97,6 +98,14 @@ class TrainConfig:
     # ensemble strategy
     rebalance_window: int = 63
     validation_window: int = 63
+    # Per-algorithm training steps, e.g. {"a2c": 30_000, "ppo": 100_000, "ddpg": 10_000};
+    # algorithms not listed use ``total_timesteps``.
+    ensemble_timesteps: Optional[dict] = None
+    # Per-algorithm model settings replacing the config.py defaults, e.g.
+    # {"ddpg": {"action_noise": {"type": "ornstein_uhlenbeck", "sigma": 0.5}}}.
+    ensemble_model_kwargs: Optional[dict] = None
+    # Also trade each algorithm with its own account (refit like the winner).
+    standalone_accounts: bool = False
     # LSTM forecasting strategy
     lstm_window: int = 20
     lstm_hidden_size: int = 32
@@ -155,6 +164,19 @@ class TrainConfig:
             raise ValueError("eval_freq must be at least 1")
         if self.validation_days and self.agent == "ensemble":
             raise ValueError("The ensemble strategy has its own validation_window")
+        for name in ("ensemble_timesteps", "ensemble_model_kwargs"):
+            unknown = set(getattr(self, name) or {}) - set(ENSEMBLE_AGENTS)
+            if unknown:
+                raise ValueError(
+                    "{} has unknown algorithms {}; use {}".format(
+                        name, sorted(unknown), ENSEMBLE_AGENTS
+                    )
+                )
+        for agent, steps in (self.ensemble_timesteps or {}).items():
+            if isinstance(steps, bool) or not isinstance(steps, (int, np.integer)) or steps < 1:
+                raise ValueError(
+                    "ensemble_timesteps[{!r}] must be a positive integer".format(agent)
+                )
         if self.validation_days and self.agent == "lstm":
             raise ValueError("The LSTM strategy has its own lstm_validation_fraction")
         return self
@@ -413,17 +435,23 @@ def _to_jsonable(value):
 
 
 def evaluate_account(
-    account_value, trade, cfg, out_dir, actions=None, title="Backtest", extra=None
+    account_value, trade, cfg, out_dir, actions=None, title="Backtest", extra=None,
+    history=None, agent_accounts=None,
 ):
-    """Benchmark an account against the baselines and save the results."""
+    """Benchmark an account against the baselines and save the results.
+
+    ``history`` (rows before ``trade``) adds the minimum-variance baseline;
+    ``agent_accounts`` (name -> account frame) adds standalone-agent accounts.
+    """
     from rl.trade.backtest import compare_stats, get_baseline, plot_account_values
     from rl.trade.baselines import baseline_account_values, buy_and_hold
 
     os.makedirs(out_dir, exist_ok=True)
     traded = trade[trade["date"].isin(account_value["date"])]
     strategies = {cfg.agent.upper(): account_value}
+    strategies.update({name.upper(): frame for name, frame in (agent_accounts or {}).items()})
     strategies.update(
-        baseline_account_values(traded, cfg.initial_amount, cfg.buy_cost_pct)
+        baseline_account_values(traded, cfg.initial_amount, cfg.buy_cost_pct, history=history)
     )
     if cfg.benchmark_ticker:
         try:
@@ -635,12 +663,16 @@ def run_backtest(model_dir, **overrides):
 
 
 def run_ensemble(cfg):
-    """Rolling-window A2C/PPO/DDPG ensemble over the trading period."""
+    """Rolling-window A2C/PPO/DDPG ensemble over the trading period.
+
+    ``cfg.ensemble_timesteps`` and ``cfg.ensemble_model_kwargs`` set each
+    algorithm's training steps and settings; ``cfg.use_turbulence=False`` turns
+    the liquidation rule off; ``cfg.standalone_accounts`` adds an account per
+    algorithm to the result (``agent_account_values``) and the statistics.
+    """
     from rl.model.models import DRLEnsembleAgent, MODEL_KWARGS
 
-    cfg = dataclasses.replace(
-        cfg, agent="ensemble", task="trading", use_turbulence=True
-    ).validate()
+    cfg = dataclasses.replace(cfg, agent="ensemble", task="trading").validate()
     _seed_everything(cfg.seed)
     run_name = _run_name(cfg)
     out_dir = os.path.join(cfg.results_dir, run_name)
@@ -670,21 +702,36 @@ def run_ensemble(cfg):
         # Per-window validation and trading files.
         results_dir=os.path.join(out_dir, "windows"),
         verbose=cfg.verbose,
+        use_turbulence=cfg.use_turbulence,
+        standalone_accounts=cfg.standalone_accounts,
     )
-    timesteps = {name: cfg.total_timesteps for name in ("a2c", "ppo", "ddpg")}
+    timesteps = {name: cfg.total_timesteps for name in ENSEMBLE_AGENTS}
+    timesteps.update(cfg.ensemble_timesteps or {})
+    model_kwargs = {name: MODEL_KWARGS[name] for name in ENSEMBLE_AGENTS}
+    model_kwargs.update(cfg.ensemble_model_kwargs or {})
     summary = ensemble.run_ensemble_strategy(
-        MODEL_KWARGS["a2c"], MODEL_KWARGS["ppo"], MODEL_KWARGS["ddpg"], timesteps
+        model_kwargs["a2c"], model_kwargs["ppo"], model_kwargs["ddpg"], timesteps
     )
     if ensemble.account_value is None:
         raise ValueError("The trading period must contain at least two dates")
     os.makedirs(out_dir, exist_ok=True)
     run_config = dataclasses.asdict(cfg)
     run_config.update(
-        run_name=run_name, tickers=tickers,
+        run_name=run_name, tickers=tickers, resolved_ensemble_timesteps=timesteps,
         eligibility_cutoff=processed.attrs["eligibility_cutoff"], execution_timing="next_open",
     )
     with open(os.path.join(out_dir, "run_config.json"), "w", encoding="utf-8") as f:
         json.dump(run_config, f, indent=2, default=_to_jsonable)
+    extra = {"ensemble_summary.csv": summary, "executions.csv": ensemble.executions}
+    agent_accounts = ensemble.agent_account_values
+    if agent_accounts is not None:
+        accounts = ensemble.account_value[["date"]].assign(
+            ENSEMBLE=ensemble.account_value["account_value"].to_numpy()
+        )
+        for name in ENSEMBLE_AGENTS:
+            accounts[name.upper()] = agent_accounts[name]["account_value"].to_numpy()
+        extra["agent_accounts.csv"] = accounts
+    first_trade_date = ensemble.account_value["date"].iloc[0]
     stats = evaluate_account(
         ensemble.account_value,
         trade,
@@ -692,7 +739,9 @@ def run_ensemble(cfg):
         out_dir,
         actions=ensemble.actions,
         title="Ensemble vs baselines",
-        extra={"ensemble_summary.csv": summary, "executions.csv": ensemble.executions},
+        extra=extra,
+        history=processed[processed["date"] < first_trade_date],
+        agent_accounts=agent_accounts,
     )
     logger.info("Ensemble model choices:\n%s", summary.to_string(index=False))
     return {
@@ -703,6 +752,7 @@ def run_ensemble(cfg):
         "executions": ensemble.executions,
         "summary": summary,
         "stats": stats,
+        "agent_account_values": agent_accounts,
     }
 
 

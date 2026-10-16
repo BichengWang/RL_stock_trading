@@ -1,0 +1,34 @@
+{
+  "task": "us-sectors",
+  "submission": "sac-tuned",
+  "policy": "rl.bench.policies.sb3:SB3Policy",
+  "params": {
+    "algo": "sac",
+    "timesteps": 100000,
+    "episode_length": 63,
+    "net_arch": [
+      128,
+      128
+    ],
+    "learning_rate": 0.0003,
+    "gamma": 0.95
+  },
+  "fitted_through": "2026-10-13",
+  "validation_start": "2023-10-13",
+  "frozen_at": "2026-10-15T03:41:56+00:00",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "data_sha256": "857b9d75500c7e85c9f7314e57da6299f8ef539e43759c76eb085c4628f82e4d",
+  "commit": "4c09f9cfa20c64b82b0d680dd3586147457de9ea",
+  "artifacts": {
+    "seed0/actor.npz": "f2cceed120de8c30f2136dd8d44eca43179909e5d8479202208f7e2853bd30a1",
+    "seed0/meta.json": "31e5a08d4455a64f3b3b514ae26c4badf5f785657d9f372095ea3976c060d8cc",
+    "seed1/actor.npz": "46df7c9e4420887514e7bb92ab1318c607285a7abf1308526c37e0a6f30a68d7",
+    "seed1/meta.json": "eddfbf1da663f8d14a162d70efe1677611e2bac147c568f2de7868af81551dfb",
+    "seed2/actor.npz": "ec895f0a95a03c8dc9fde6b07424863a80802b8f32b00ec1d5d39e6261a3e317",
+    "seed2/meta.json": "f86708b6c832f9e4122f8a955c209cd14b3944fe806c52b2a0d21dcb03473476"
+  }
+}

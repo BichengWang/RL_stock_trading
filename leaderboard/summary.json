@@ -25,6 +25,7 @@
    ],
    "frozen_through": null,
    "frozen_at": null,
+   "decisions_from": null,
    "sharpe_variance": 0.0009124087591240876,
    "rows": [
     {
@@ -143,6 +144,29 @@
      "rank": 5
     },
     {
+     "id": "ppo-tuned",
+     "name": "PPO (tuned)",
+     "kind": "rl",
+     "trials": 8,
+     "seeds": 5,
+     "benchmark": false,
+     "created": "2026-10-15T00:54:34+00:00",
+     "sharpe": 0.7116506029578501,
+     "sharpe_sd": 0.22218137248854578,
+     "cagr": 0.26875242451885056,
+     "max_drawdown": -0.4929568469430909,
+     "turnover": 146.13685780230435,
+     "beta": 0.8342604418374681,
+     "alpha": -0.005494579291037015,
+     "alpha_t": -0.1990836870030585,
+     "volatility": 0.5305432009538773,
+     "total_return": 1.1031676936000037,
+     "delta_sharpe": -0.041315574780888153,
+     "p_value": 0.6211894052973513,
+     "dsr": 0.42617931685281324,
+     "rank": 6
+    },
+    {
      "id": "a2c",
      "name": "A2C",
      "kind": "rl",
@@ -163,7 +187,7 @@
      "delta_sharpe": -0.07152837033005917,
      "p_value": 0.8220889555222389,
      "dsr": 0.8880022254624559,
-     "rank": 6
+     "rank": 7
     },
     {
      "id": "td3",
@@ -186,7 +210,7 @@
      "delta_sharpe": -0.07648222484947673,
      "p_value": 0.656671664167916,
      "dsr": 0.8868940266377867,
-     "rank": 7
+     "rank": 8
     },
     {
      "id": "ppo",
@@ -209,7 +233,7 @@
      "delta_sharpe": -0.0997056274831139,
      "p_value": 0.7776111944027986,
      "dsr": 0.8786575946367916,
-     "rank": 8
+     "rank": 9
     },
     {
      "id": "ddpg",
@@ -232,7 +256,7 @@
      "delta_sharpe": -0.2185020314248892,
      "p_value": 0.9195402298850575,
      "dsr": 0.8326475955574135,
-     "rank": 9
+     "rank": 10
     },
     {
      "id": "sac",
@@ -255,7 +279,7 @@
      "delta_sharpe": -0.27097364940003177,
      "p_value": 0.8990504747626187,
      "dsr": 0.8101304273516511,
-     "rank": 10
+     "rank": 11
     },
     {
      "id": "trend-following",
@@ -278,7 +302,30 @@
      "delta_sharpe": -0.6803731522096685,
      "p_value": 0.9710144927536232,
      "dsr": 0.565400153169627,
-     "rank": 11
+     "rank": 12
+    },
+    {
+     "id": "sac-tuned",
+     "name": "SAC (tuned)",
+     "kind": "rl",
+     "trials": 8,
+     "seeds": 5,
+     "benchmark": false,
+     "created": "2026-10-15T03:26:23+00:00",
+     "sharpe": 0.07091933284974807,
+     "sharpe_sd": 0.49064259091166623,
+     "cagr": -0.09607897229400467,
+     "max_drawdown": -0.6762266328297478,
+     "turnover": 322.82945644328817,
+     "beta": 0.7954447745431239,
+     "alpha": -0.33509036866622255,
+     "alpha_t": -1.8171845725814486,
+     "volatility": 0.5632027019474986,
+     "total_return": -0.11477522290000208,
+     "delta_sharpe": -0.7211593749940349,
+     "p_value": 1.0,
+     "dsr": 0.08635951821672438,
+     "rank": 13
     },
     {
      "id": "lstm-forecast",
@@ -301,7 +348,7 @@
      "delta_sharpe": -1.1292737894392644,
      "p_value": 0.9960019990004998,
      "dsr": 0.2701936730196576,
-     "rank": 12
+     "rank": 14
     },
     {
      "id": "cash",
@@ -324,7 +371,7 @@
      "delta_sharpe": null,
      "p_value": null,
      "dsr": null,
-     "rank": 13
+     "rank": 15
     }
    ]
   },
@@ -352,6 +399,7 @@
    ],
    "frozen_through": null,
    "frozen_at": null,
+   "decisions_from": null,
    "sharpe_variance": 0.0004972650422675286,
    "rows": [
     {
@@ -516,6 +564,52 @@
      "rank": 7
     },
     {
+     "id": "sac-tuned",
+     "name": "SAC (tuned)",
+     "kind": "rl",
+     "trials": 8,
+     "seeds": 5,
+     "benchmark": false,
+     "created": "2026-10-15T03:26:38+00:00",
+     "sharpe": 0.5842563145539075,
+     "sharpe_sd": 0.06297348966495701,
+     "cagr": 0.06259059961222482,
+     "max_drawdown": -0.2520248322915643,
+     "turnover": 22.693529783123157,
+     "beta": 0.8794807776721306,
+     "alpha": -0.014419800093132184,
+     "alpha_t": -1.8517139951968353,
+     "volatility": 0.11554775794108126,
+     "total_return": 0.6248338478000022,
+     "delta_sharpe": -0.13876555492166717,
+     "p_value": 0.9945027486256871,
+     "dsr": 0.5805586613415843,
+     "rank": 8
+    },
+    {
+     "id": "ppo-tuned",
+     "name": "PPO (tuned)",
+     "kind": "rl",
+     "trials": 8,
+     "seeds": 5,
+     "benchmark": false,
+     "created": "2026-10-15T00:54:50+00:00",
+     "sharpe": 0.5768632554705888,
+     "sharpe_sd": 0.009812672017509483,
+     "cagr": 0.061036603969115165,
+     "max_drawdown": -0.24352386112794924,
+     "turnover": 23.565365037581834,
+     "beta": 0.8823529032553763,
+     "alpha": -0.016327604103662356,
+     "alpha_t": -2.8824598933709966,
+     "volatility": 0.11400450829738766,
+     "total_return": 0.6045578608000021,
+     "delta_sharpe": -0.1510413626990845,
+     "p_value": 0.9995002498750625,
+     "dsr": 0.5678019139614929,
+     "rank": 9
+    },
+    {
      "id": "trend-following",
      "name": "Trend following (200d SMA)",
      "kind": "baseline",
@@ -536,7 +630,7 @@
      "delta_sharpe": -0.15602154179668098,
      "p_value": 0.7741129435282359,
      "dsr": 0.9446233700387223,
-     "rank": 8
+     "rank": 10
     },
     {
      "id": "minimum-variance",
@@ -559,7 +653,7 @@
      "delta_sharpe": -0.1926203441141338,
      "p_value": 0.7706146926536732,
      "dsr": 0.9342304196173321,
-     "rank": 9
+     "rank": 11
     },
     {
      "id": "sac",
@@ -582,7 +676,7 @@
      "delta_sharpe": -0.198465081450022,
      "p_value": 0.9995002498750625,
      "dsr": 0.9305265974147005,
-     "rank": 10
+     "rank": 12
     },
     {
      "id": "td3",
@@ -605,7 +699,7 @@
      "delta_sharpe": -0.43369381870074347,
      "p_value": 1.0,
      "dsr": 0.7952758104417118,
-     "rank": 11
+     "rank": 13
     },
     {
      "id": "ddpg",
@@ -628,7 +722,7 @@
      "delta_sharpe": -0.4959031769736436,
      "p_value": 0.9995002498750625,
      "dsr": 0.7433275789579494,
-     "rank": 12
+     "rank": 14
     },
     {
      "id": "cash",
@@ -651,7 +745,7 @@
      "delta_sharpe": null,
      "p_value": null,
      "dsr": null,
-     "rank": 13
+     "rank": 15
     }
    ]
   },
@@ -678,6 +772,7 @@
    ],
    "frozen_through": null,
    "frozen_at": null,
+   "decisions_from": null,
    "sharpe_variance": 0.0004972650422675286,
    "rows": [
     {
@@ -796,6 +891,52 @@
      "rank": 5
     },
     {
+     "id": "sac-tuned",
+     "name": "SAC (tuned)",
+     "kind": "rl",
+     "trials": 8,
+     "seeds": 5,
+     "benchmark": false,
+     "created": "2026-10-15T03:26:15+00:00",
+     "sharpe": 0.6460836554018686,
+     "sharpe_sd": 0.026498438286246484,
+     "cagr": 0.0978969602610162,
+     "max_drawdown": -0.3356765832255685,
+     "turnover": 14.969970833919016,
+     "beta": 0.8934922262829972,
+     "alpha": -0.00535121759954991,
+     "alpha_t": -0.7219642008549545,
+     "volatility": 0.16590882537820142,
+     "total_return": 1.1083624559999965,
+     "delta_sharpe": -0.036215112045902546,
+     "p_value": 0.8225887056471765,
+     "dsr": 0.6423572106339441,
+     "rank": 6
+    },
+    {
+     "id": "ppo-tuned",
+     "name": "PPO (tuned)",
+     "kind": "rl",
+     "trials": 8,
+     "seeds": 5,
+     "benchmark": false,
+     "created": "2026-10-15T00:54:50+00:00",
+     "sharpe": 0.6169571531362702,
+     "sharpe_sd": 0.026761856275384997,
+     "cagr": 0.09344883850309227,
+     "max_drawdown": -0.3415154219380375,
+     "turnover": 28.088897382747852,
+     "beta": 0.9024672158347375,
+     "alpha": -0.010257361102791351,
+     "alpha_t": -1.351840780584547,
+     "volatility": 0.16764184929495193,
+     "total_return": 1.0410455646000023,
+     "delta_sharpe": -0.06539707081495941,
+     "p_value": 0.9580209895052474,
+     "dsr": 0.6117771626735141,
+     "rank": 7
+    },
+    {
      "id": "ppo",
      "name": "PPO",
      "kind": "rl",
@@ -816,7 +957,7 @@
      "delta_sharpe": -0.07614345211139226,
      "p_value": 0.9785107446276862,
      "dsr": 0.954807345940738,
-     "rank": 6
+     "rank": 8
     },
     {
      "id": "lstm-forecast",
@@ -839,7 +980,7 @@
      "delta_sharpe": -0.07096441764175207,
      "p_value": 0.8270864567716142,
      "dsr": 0.9552325044462245,
-     "rank": 7
+     "rank": 9
     },
     {
      "id": "trend-following",
@@ -862,7 +1003,7 @@
      "delta_sharpe": -0.09781445151826725,
      "p_value": 0.6951524237881059,
      "dsr": 0.9489697447878668,
-     "rank": 8
+     "rank": 10
     },
     {
      "id": "minimum-variance",
@@ -885,7 +1026,7 @@
      "delta_sharpe": -0.13099621411567428,
      "p_value": 0.8200899550224887,
      "dsr": 0.9383878037155091,
-     "rank": 9
+     "rank": 11
     },
     {
      "id": "sac",
@@ -908,7 +1049,7 @@
      "delta_sharpe": -0.14687154653521167,
      "p_value": 0.9865067466266867,
      "dsr": 0.9335767784191564,
-     "rank": 10
+     "rank": 12
     },
     {
      "id": "ddpg",
@@ -931,7 +1072,7 @@
      "delta_sharpe": -0.35791608711953915,
      "p_value": 1.0,
      "dsr": 0.8196432885479159,
-     "rank": 11
+     "rank": 13
     },
     {
      "id": "td3",
@@ -954,7 +1095,7 @@
      "delta_sharpe": -0.3651559830956899,
      "p_value": 1.0,
      "dsr": 0.8139305312089408,
-     "rank": 12
+     "rank": 14
     },
     {
      "id": "cash",
@@ -977,7 +1118,7 @@
      "delta_sharpe": null,
      "p_value": null,
      "dsr": null,
-     "rank": 13
+     "rank": 15
     }
    ]
   },
@@ -1015,6 +1156,7 @@
    ],
    "frozen_through": null,
    "frozen_at": null,
+   "decisions_from": null,
    "sharpe_variance": 0.0019801980198019802,
    "rows": [
     {

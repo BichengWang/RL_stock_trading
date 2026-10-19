@@ -1,7 +1,9 @@
 # RL-pricing plan: the reproducibility lab for trading AI
 
-Status: 2026-10-14. Owner: Bicheng Wang. This directory is the source of truth for
-direction; change [`decisions.md`](decisions.md) first when direction changes.
+Status: 2026-10-18; audit and next steps in
+[`phase-0-foundations.md`](phase-0-foundations.md#status-2026-10-18). Owner:
+Bicheng Wang. This directory is the source of truth for direction; change
+[`decisions.md`](decisions.md) first when direction changes.
 
 | File | Contents |
 | --- | --- |
@@ -96,9 +98,10 @@ RL-pricing/
 │       └── evidence/                # per-seed JSON, manifests, commands
 ├── rl/bench/
 │   ├── ledger.py                    # NEW: committed daily decisions → engine replay
-│   ├── report.py                    # NEW: monthly live report + verdict table
-│   └── policies/external.py         # NEW: adapters (TradingAgents, FinRL ensemble)
-├── submissions/<id>/ledger/YYYY-MM-DD.json   # NEW: prospective decisions
+│   ├── monthly.py                   # NEW: monthly live report
+│   ├── verdicts.py                  # NEW: verdict table from every claims.json
+│   └── policies/tradingagents.py    # NEW: TradingAgents adapter
+├── submissions/<id>/ledger/<task>/YYYY-MM-DD.json   # NEW: prospective decisions
 ├── leaderboard/reports/YYYY-MM.md   # NEW: monthly live report
 └── .github/workflows/ledger.yml     # NEW: daily pre-open decision commits
 ```
@@ -110,9 +113,9 @@ RL-pricing/
 | Engine, tasks, scoring, multi-seed runner | ✅ | Every L2 test |
 | Live track (freeze, CI publication, monthly replay) | ✅ | Leaderboard policies |
 | Share-trading toolkit (`--mode train/ensemble`) | ✅ | R0, R1 replication |
-| Decision ledger (daily, committed before the open) | 🔜 Phase 0 | R3 and any LLM agent |
-| Reports scaffolding and verdict table | 🔜 Phase 0 | All reports |
-| Licensed survivorship-free US equities | 🔜 Phase 0 decision | R1 (Dow 30 as of 2016 includes delisted names) |
+| Decision ledger (daily, committed before the open) | ◐ Shipped; on GitHub the commit step and the schedule fail (P0.11–P0.14) | R3 and any LLM agent |
+| Reports scaffolding and verdict table | ✅ | All reports |
+| Licensed survivorship-free US equities | ◐ Sharadar chosen; written confirmation pending (P0.6) | R1 (Dow 30 as of 2016 includes delisted names) |
 | CI-computed historical records, protocol version on records | 🔜 Phase 1 | Third-party submissions |
 | Probability of backtest overfitting (CPCV) | 🔜 Phase 2 | Claims based on selection |
 
@@ -125,7 +128,9 @@ gantt
   section Phase 0
   Lab scaffolding, R0 write-up          :p0a, 2026-10-15, 14d
   Decision ledger MVP                    :p0b, 2026-10-15, 12d
-  TradingAgents live start (R3 clock)    :milestone, 2026-10-30, 0d
+  Ledger fixes and canary                :p0c, 2026-10-19, 8d
+  R3 first fill, target                  :milestone, 2026-10-23, 0d
+  R3 start deadline                      :milestone, 2026-10-30, 0d
   First monthly live report              :milestone, 2026-11-02, 0d
   Launch                                 :milestone, 2026-11-04, 0d
   section Phase 1
@@ -168,7 +173,8 @@ Reference points: TradeMaster 3.1k, SWE-bench 6.0k, FinRL 16.6k, AI-Trader
 | Authors object or feel attacked | 7-day notice, reply printed verbatim, corrections policy, neutral verdict wording |
 | A verdict is wrong | Pre-registration, one-command reproduction, corrections log in the report |
 | LLM results contaminated by training data | Only models with a documented cutoff before the window count historically; otherwise only the live ledger counts |
-| Live ledger misses an open (Actions delay, API outage) | Run at 12:00 UTC with a 90-minute buffer; a missed day is recorded as "hold", never back-filled |
+| Live ledger misses an open (Actions delay, API outage) | Three runs before the open, Mon–Fri at 04:17, 07:17 and 10:17 UTC: the 12:00 UTC cron started 2 h 41 m to 3 h 48 m late on its first three runs. Outside `workflow_dispatch` as fallback; a zero-cost canary participant shows breakage first. A missed day is a hold, never back-filled |
+| A paid agent runs without its keys or cap | Preflight (P0.13): nothing is written and the job fails before the open |
 | Data licence forbids publishing results | Licence review before purchase (P0.6); publish derived metrics only |
 | API spend overruns | Per-run cost logging and a hard monthly cap that stops the ledger job |
 | Low statistical power on short windows | Every report states the smallest effect it could detect |

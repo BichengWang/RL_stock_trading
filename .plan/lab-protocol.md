@@ -30,7 +30,12 @@ Before the first run, commit `reports/<id>/preregistration.md` containing:
    with the reason.
 
 The git commit time of the pre-registration is the evidence that the plan came
-first. R0 predates this protocol and is labeled "post hoc".
+first. Merge it to `main` in its own pull request, before the code or runs it
+governs. A squash merge restamps commits: the R3 and R1 pre-registrations were
+first committed at 00:58 and 01:24 UTC on 2026-10-15, but they carry 01:01 UTC
+on 2026-10-16 on `main`. The original commits survive only on the branches
+`feat/lab-foundations` (R3) and `feat/phase0-followups` (R1 and R3), so those
+branches must not be deleted. R0 predates this protocol and is labeled "post hoc".
 
 ## Verdicts
 

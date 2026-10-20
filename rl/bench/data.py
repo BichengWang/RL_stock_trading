@@ -3,10 +3,13 @@
 :func:`load_task_data` returns a :class:`~rl.bench.market.MarketData` panel
 for a :class:`~rl.bench.tasks.Task`:
 
-* ``yahoo``: adjusted OHLC from Yahoo Finance via
-  :class:`~rl.marketdata.yahoodownloader.YahooDownloader`, cached per ticker.
-  Yahoo's terms forbid redistribution, so the cache stays local (the default
-  ``datasets/`` directory is gitignored) and is never published.
+* ``yahoo``: daily prices and dividends from Yahoo Finance via
+  :class:`~rl.marketdata.yahoodownloader.YahooDownloader`, cached per ticker
+  unadjusted and adjusted for dividends forward from the task's first
+  session. A session's prices therefore depend only on earlier sessions:
+  loading more data never changes them, and the same window always hashes
+  the same. Yahoo's terms forbid redistribution, so the cache stays local
+  (the default ``datasets/`` directory is gitignored) and is never published.
 * ``binance``: spot daily klines from the public https://data.binance.vision
   archive. Every downloaded zip is verified against Binance's published
   SHA-256 checksum and cached together with it. Missing files (a symbol
@@ -40,7 +43,7 @@ import pandas as pd
 from rl.bench.market import FIELDS, MarketData, as_day
 from rl.bench.tasks import Task
 from rl.marketdata.synthetic import generate_synthetic_data
-from rl.marketdata.yahoodownloader import YahooDownloader
+from rl.marketdata.yahoodownloader import PRICE_COLUMNS, YahooDownloader, total_return_factors
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +64,10 @@ KLINE_COLUMNS = (
     "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore",
 )
 FRAME_COLUMNS = ["date", *FIELDS]
+# Yahoo cache files hold unadjusted prices and dividends; caches without this
+# format number hold Yahoo's adjusted prices and are downloaded again.
+YAHOO_CACHE_FORMAT = 2
+YAHOO_COLUMNS = [*FRAME_COLUMNS, "dividends"]
 
 
 def load_task_data(task: Task, *, end=None, cache_dir=None, refresh: bool = False) -> MarketData:
@@ -175,8 +182,19 @@ def _write_atomic(path: Path, payload: bytes):
 
 
 def _download_yahoo(ticker: str, start, stop) -> pd.DataFrame:
-    """Adjusted daily OHLCV for ``[start, stop)`` as returned by ``YahooDownloader``."""
-    return YahooDownloader(str(start), str(stop), [ticker]).fetch_data()
+    """Unadjusted daily OHLCV and dividends for ``[start, stop)`` from ``YahooDownloader``."""
+    return YahooDownloader(str(start), str(stop), [ticker]).fetch_unadjusted()
+
+
+def _adjust_forward(frame: pd.DataFrame, start, stop) -> pd.DataFrame:
+    """Rows in ``[start, stop)`` adjusted for dividends, scaled to the first row's prices."""
+    dates = pd.to_datetime(frame["date"])
+    frame = frame[(dates >= pd.Timestamp(str(start))) & (dates < pd.Timestamp(str(stop)))]
+    frame = frame.sort_values("date")
+    factors = total_return_factors(frame["close"], frame["dividends"])
+    adjusted = frame[FRAME_COLUMNS].copy()
+    adjusted[PRICE_COLUMNS] = frame[PRICE_COLUMNS].mul(factors, axis=0)
+    return adjusted
 
 
 def _yahoo(task: Task, start, stop, cache: Path, refresh: bool) -> dict[str, pd.DataFrame]:
@@ -186,20 +204,30 @@ def _yahoo(task: Task, start, stop, cache: Path, refresh: bool) -> dict[str, pd.
         frame = None
         if not refresh and data_path.exists() and meta_path.exists():
             meta = json.loads(meta_path.read_text())
-            if as_day(meta["start"]) <= start and as_day(meta["end"]) >= stop:
-                frame = pd.read_csv(data_path)
+            if (
+                meta.get("format") == YAHOO_CACHE_FORMAT
+                and as_day(meta["start"]) <= start
+                and as_day(meta["end"]) >= stop
+            ):
+                # round_trip parsing returns exactly the floats that were written.
+                frame = pd.read_csv(data_path, float_precision="round_trip")
         if frame is None:
             logger.info("Downloading %s from Yahoo Finance", ticker)
             frame = _download_yahoo(ticker, start, stop)
             if frame.empty:
                 raise ValueError("Yahoo Finance returned no data for {} in [{}, {})".format(ticker, start, stop))
-            frame = frame[FRAME_COLUMNS]
+            frame = frame[YAHOO_COLUMNS]
             _write_atomic(data_path, frame.to_csv(index=False).encode())
             _write_atomic(
                 meta_path,
-                json.dumps({"start": str(start), "end": str(stop), "fetched": datetime.now(timezone.utc).isoformat()}).encode(),
+                json.dumps({
+                    "format": YAHOO_CACHE_FORMAT,
+                    "start": str(start),
+                    "end": str(stop),
+                    "fetched": datetime.now(timezone.utc).isoformat(),
+                }).encode(),
             )
-        frames[ticker] = frame
+        frames[ticker] = _adjust_forward(frame, start, stop)
     return frames
 
 

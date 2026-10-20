@@ -54,7 +54,7 @@ the launch is the only lever for an audience.
 | P0.15 | R3 start gate. (a) Recall probe: both models, no tools, prices and events of the three stocks for the week before the start; script and output in `reports/r3-tradingagents-live/evidence/`. (b) One dry run of the three decisions in a scratch clone, entries discarded, tokens and cost measured. (c) A dated addendum to the R3 pre-registration with (a) and (b), committed before the first entry | agent; owner lends the key locally | P0.13 | Addendum on `main`; then the owner sets the Actions secrets and variables (checklist below). The next scheduled run makes R3's first entry | 10-22 |
 | P0.16 | R0 notice: email Xinyi Zhang the draft, evidence and reproduce command. `reply.md` records the send date and that the report was on `main` from 2026-10-16 | owner sends; agent drafts | – | Sent by 10-21; hard limit 10-27 (P0.3), 7 days before the launch with a day to spare | 10-21 |
 | P0.17 | Monthly dry run in a scratch clone: the `live` job's steps (`bench live --refresh`, `ledger score` with a token, `bench monthly --month 2026-10`, `leaderboard`, `reports`); fix what breaks | agent | P0.14 | A partial October report renders with the live table and the canary's ledger row; nothing committed | 10-28 |
-| P0.18 | Claim PyPI before the launch (moved from P1.4): distribution `rl` → `rl-pricing` in `setup.py`, version 0.5.0. The import package stays `rl`, so the layout decision holds | agent; owner holds PyPI | – | In a clean venv, `pip install rl-pricing` then `rl-pricing bench tasks` works | 11-02 |
+| P0.18 | Claim PyPI before the launch (moved from P1.4): distribution `rl` → `rl-pricing` in `setup.py`, version 0.5.0. The import package stays `rl`, so the layout decision holds; it can't share an environment with the unrelated `rl` (GNU Readline) distribution, which the PyPI page says. Releases publish through `.github/workflows/publish.yml` with PyPI trusted publishing, so no token is stored | agent; owner adds the PyPI publisher and publishes the release | – | In a clean venv, `pip install rl-pricing` then `rl-pricing bench tasks` works | 11-02 |
 | P0.19 | R1 groundwork while the ledger runs: download and hash the authors' files and the Yahoo data (R1 §14); L1 build probe, TensorFlow 1.15 on Python 3.7 in a `python:3.7` container on a runner | agent | – | Hashes in `reports/r1-finrl-ensemble/evidence/`. L1 go/no-go decided by 11-05 instead of 11-17; the report notes the schedule change | 11-05 |
 | P0.20 | Stale text: README "Reference RL agents are untuned"; the launch kit's `2026-11.md` → `2026-10.md` | agent | – | Both corrected | 10-28 |
 
@@ -68,7 +68,11 @@ Owner checklist, in order:
    addendum is on `main`, set the secrets `OPENAI_API_KEY` and `FRED_API_KEY`
    and the variables `SEC_EDGAR_USER_AGENT` and
    `LEDGER_MONTHLY_BUDGET_USD=40`. Setting them starts R3, so not before.
-6. P0.18: PyPI token by 11-01.
+6. P0.18, by 11-01: on PyPI, add a pending trusted publisher (project
+   `rl-pricing`, owner `BichengWang`, repository `RL-pricing`, workflow
+   `publish.yml`, environment `pypi`), then publish a GitHub release tagged
+   `v0.5.0` from `main`. A pending publisher doesn't reserve the name, so
+   publish soon after adding it.
 7. 11-02: paste the October report's numbers into the launch kit. 11-03:
    author emails. 11-04: posts.
 

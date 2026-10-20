@@ -286,10 +286,14 @@ reports the test window. Definitions live in [`rl/bench/tasks.py`](rl/bench/task
 
 ## Data
 
-US tasks use Yahoo Finance adjusted prices downloaded to a local cache.
+US tasks use Yahoo Finance prices and dividends, downloaded to a local cache.
 Yahoo's terms prohibit redistribution, so the repository ships no prices,
-only derived results. Adjusted history changes as dividends are paid, and
-records note when a data hash changes. Crypto uses
+only derived results. Prices are adjusted for dividends forward from each
+task's first session rather than taken from Yahoo's adjusted close, whose
+last digits change between identical requests. A past session therefore
+keeps its prices as new sessions arrive, and replaying the same window
+reproduces its data hash; a changed hash means Yahoo revised its
+history. Crypto uses
 [Binance Vision](https://data.binance.vision) daily klines, each archive
 verified against Binance's SHA-256 checksum. Binance Vision data is licensed
 CC BY-NC-SA 4.0; the crypto results here derive from it, with attribution,

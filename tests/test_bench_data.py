@@ -2,6 +2,7 @@
 
 import hashlib
 import io
+import json
 import zipfile
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
@@ -182,38 +183,69 @@ def test_synthetic_is_deterministic_and_ordered_as_task():
     assert np.array_equal(longer.rows(0, len(one)).close, one.close)
 
 
-def yahoo_frame(first="2024-01-02", rows=4, split=2.0):
+def yahoo_frame(first="2024-01-02", rows=4, dividends=None):
+    """Yahoo's columns: prices adjusted for splits only, dividends on ex-dates."""
     index = pd.bdate_range(first, periods=rows, name="Date")
-    price = np.arange(rows, dtype=float) + 100
+    # Thirds have no short decimal form, so a lossy CSV round trip changes them.
+    price = np.arange(rows, dtype=float) + 100 + 1 / 3
     return pd.DataFrame(
         {
-            "Open": price * split, "High": (price + 1) * split, "Low": (price - 1) * split,
-            "Close": (price + 0.5) * split, "Adj Close": price + 0.5, "Volume": 1000.0 + np.arange(rows),
+            "Open": price, "High": price + 1, "Low": price - 1, "Close": price + 0.5,
+            # Yahoo recomputes this on every request; it must not be used.
+            "Adj Close": price * 0.5, "Volume": 1000.0 + np.arange(rows),
+            "Dividends": np.zeros(rows) if dividends is None else np.asarray(dividends, dtype=float),
+            "Stock Splits": np.zeros(rows),
         },
         index=index,
     )
 
 
-def test_yahoo_uses_adjusted_prices_and_caches_per_ticker(tmp_path):
+def windowed(frame):
+    """A mock ``yf.download`` returning the rows of ``frame`` in ``[start, end)``."""
+    return lambda tic, start, end, **k: frame[(frame.index >= start) & (frame.index < end)]
+
+
+def test_yahoo_adjusts_dividends_forward_and_caches_exactly(tmp_path):
     task = make_task("yahoo", ["BBB", "AAA"], "2024-01-01")
-    with patch("rl.marketdata.yahoodownloader.yf.download", side_effect=lambda *a, **k: yahoo_frame()) as download:
+    raw = yahoo_frame(dividends=[0.0, 0.0, 10.15, 0.0])
+    with patch("rl.marketdata.yahoodownloader.yf.download", side_effect=windowed(raw)) as download:
         panel = load_task_data(task, end="2024-01-10", cache_dir=tmp_path)
         assert download.call_count == 2
         assert panel.tickers == ("BBB", "AAA")
-        # open/high/low are scaled by Adj Close / Close like the close itself
-        assert panel.open[0, 0] == pytest.approx(100.0)
-        assert panel.close[0, 0] == 100.5
+        # Sessions before the ex-date keep their prices; the ex-date and later
+        # sessions are scaled up by close / (close - dividend) of the day before.
+        assert np.array_equal(panel.close[:2, 0], raw["Close"].to_numpy()[:2])
+        factor = raw["Close"].iloc[1] / (raw["Close"].iloc[1] - 10.15)
+        assert panel.close[2:, 0] == pytest.approx(raw["Close"].to_numpy()[2:] * factor)
+        assert panel.open[2:, 0] == pytest.approx(raw["Open"].to_numpy()[2:] * factor)
         first_hash = panel.sha256()
 
         assert load_task_data(task, end="2024-01-10", cache_dir=tmp_path).sha256() == first_hash
-        assert download.call_count == 2, "covered range is served from the cache"
+        assert download.call_count == 2, "covered range is served from the cache, unchanged"
 
-        load_task_data(task, end="2024-01-10", cache_dir=tmp_path, refresh=True)
+        refreshed = load_task_data(task, end="2024-01-10", cache_dir=tmp_path, refresh=True)
         assert download.call_count == 4
+        assert refreshed.sha256() == first_hash
 
         load_task_data(task, end="2024-02-10", cache_dir=tmp_path)
         assert download.call_count == 6, "a cache that ends before the requested end is refreshed"
+
+        meta = tmp_path / "yahoo" / "AAA.json"
+        meta.write_text(json.dumps({k: v for k, v in json.loads(meta.read_text()).items() if k != "format"}))
+        load_task_data(task, end="2024-02-10", cache_dir=tmp_path)
+        assert download.call_count == 7, "a cache of Yahoo's adjusted prices is downloaded again"
     assert sorted(p.name for p in (tmp_path / "yahoo").iterdir()) == ["AAA.csv", "AAA.json", "BBB.csv", "BBB.json"]
+
+
+def test_yahoo_sessions_do_not_change_when_later_sessions_arrive(tmp_path):
+    task = make_task("yahoo", ["AAA"], "2024-01-01")
+    raw = yahoo_frame(rows=10, dividends=[0.0] * 7 + [5.0, 0.0, 0.0])
+    with patch("rl.marketdata.yahoodownloader.yf.download", side_effect=windowed(raw)):
+        before = load_task_data(task, end=str(raw.index[5].date()), cache_dir=tmp_path)
+        after = load_task_data(task, end="2024-02-01", cache_dir=tmp_path)
+    assert len(before) == 5 and len(after) == 10
+    assert after.rows(0, len(before)).sha256() == before.sha256()
+    assert after.close[-1, 0] != raw["Close"].iloc[-1], "the later dividend is still applied"
 
 
 def test_yahoo_ticker_without_data_raises(tmp_path):

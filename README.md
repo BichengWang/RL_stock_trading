@@ -10,7 +10,8 @@ under one pre-registered protocol, and publish every verdict next to the
 authors' reply. That includes the verdicts against our own paper. The instruments are public:
 a causal backtesting benchmark, a live track scored only on market data that
 did not exist when a policy was published, and a ledger of decisions
-committed before each US market open.
+committed before each US market open. The reports and the leaderboard are
+also on the [lab's site](https://bichengwang.github.io/RL-pricing/).
 
 ## Verdicts
 
@@ -328,6 +329,10 @@ ruff check .
 Use `type(scope): title` for pull request titles. The
 [PR template](.github/pull_request_template.md) asks for a short summary and
 verification results.
+
+The [site](https://bichengwang.github.io/RL-pricing/) is built from this
+repository by `mkdocs.yml` and deployed on every push to main. To preview it:
+`pip install -r docs/requirements.txt && mkdocs serve`.
 
 ## Citing
 

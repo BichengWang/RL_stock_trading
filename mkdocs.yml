@@ -1,0 +1,67 @@
+# The GitHub Pages site, built by .github/workflows/pages.yml on every push to
+# main. Pages come straight from the repository (README, reports/, leaderboard/,
+# docs/); docs/site_hooks.py picks the files, builds the navigation and points
+# links to anything else at GitHub. Preview: pip install -r docs/requirements.txt
+# && mkdocs serve
+site_name: RL-pricing
+site_description: >-
+  A reproducibility lab for trading AI: pre-registered re-tests of published
+  RL, LLM and forecasting claims, with the authors' replies.
+site_url: https://bichengwang.github.io/RL-pricing/
+repo_url: https://github.com/BichengWang/RL-pricing
+repo_name: BichengWang/RL-pricing
+edit_uri: ""
+copyright: MIT License · Bicheng Wang
+
+docs_dir: docs
+watch:
+  - README.md
+  - reports
+  - leaderboard
+hooks:
+  - docs/site_hooks.py
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+plugins:
+  - search
+  # A preview card (og:image, twitter:card) for every page. Needs the Cairo
+  # library, so it runs in CI only unless CARDS=true is set.
+  - social:
+      enabled: !ENV [CARDS, !ENV [CI, false]]
+
+markdown_extensions:
+  - tables
+  - footnotes
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+extra_javascript:
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

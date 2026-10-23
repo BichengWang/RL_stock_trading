@@ -3,6 +3,7 @@
 [![tests](https://github.com/BichengWang/RL-pricing/actions/workflows/tests.yml/badge.svg)](https://github.com/BichengWang/RL-pricing/actions/workflows/tests.yml)
 [![bench](https://github.com/BichengWang/RL-pricing/actions/workflows/bench.yml/badge.svg)](https://github.com/BichengWang/RL-pricing/actions/workflows/bench.yml)
 [![arXiv](https://img.shields.io/badge/arXiv-2609.31870-b31b1b.svg)](https://arxiv.org/abs/2609.31870)
+[![site](https://img.shields.io/badge/site-reports%20%26%20leaderboard-3f51b5.svg)](https://bichengwang.github.io/RL-pricing/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 We re-test published trading-AI claims (deep RL, LLM agents, forecasters)

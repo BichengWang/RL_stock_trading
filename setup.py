@@ -11,6 +11,7 @@ with Path(__file__).with_name("requirements.in").open(encoding="utf-8") as f:
             REQUIRES.append(line)
 
 REPOSITORY = "https://github.com/BichengWang/RL-pricing"
+SITE = "https://bichengwang.github.io/RL-pricing/"
 
 # The PyPI page. The repository README carries the verdicts and leaderboard,
 # which CI rewrites between releases, so they are linked rather than copied.
@@ -56,9 +57,10 @@ setup(
     author="Bicheng Wang",
     url=REPOSITORY,
     project_urls={
+        "Homepage": SITE,
         "Source": REPOSITORY,
         "Issues": REPOSITORY + "/issues",
-        "Leaderboard": REPOSITORY + "/blob/main/leaderboard/LEADERBOARD.md",
+        "Leaderboard": SITE + "leaderboard/",
         "Paper": "https://arxiv.org/abs/2609.31870",
     },
     license_expression="MIT",

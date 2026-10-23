@@ -1,0 +1,3 @@
+# The GitHub Pages site (mkdocs.yml); not needed to use the package.
+mkdocs==1.6.1
+mkdocs-material[imaging]==9.7.7
